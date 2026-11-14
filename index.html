@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Harmoniatestaus</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --card:#fff; --ink:#1f1d1a; --mute:#6f6a62; --line:#e2ded5;
+    --a:#c4572e; --b:#2e6fa8; --accent:#1f1d1a; --rec:#d22f2f;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#161513;--card:#201f1c;--ink:#ece8e1;--mute:#9a948a;--line:#34312c;--a:#e07a50;--b:#5f9bd4;--accent:#ece8e1;--rec:#ff5a5a;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+  main{max-width:640px;margin:0 auto;padding:18px 14px 60px}
+  h1{font-size:22px;margin:4px 0 2px;letter-spacing:-.01em}
+  h2{font-size:15px;margin:0 0 10px;color:var(--mute);font-weight:600}
+  .sub{color:var(--mute);font-size:14px;margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .trackhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .dot{width:12px;height:12px;border-radius:50%;flex:none}
+  .ta .dot{background:var(--a)} .tb .dot{background:var(--b)}
+  .tname{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tname small{font-weight:400;color:var(--mute)}
+  .btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+  label.file{display:inline-block;padding:8px 12px;border-radius:10px;border:1px solid var(--line);font-size:14px;cursor:pointer;white-space:nowrap;background:var(--card)}
+  label.file input{display:none}
+  .row{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .row .lbl{width:74px;font-size:14px;color:var(--mute);flex:none}
+  .row .val{width:52px;text-align:right;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;flex:none}
+  input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:28px}
+  .ta input[type=range]{accent-color:var(--a)} .tb input[type=range]{accent-color:var(--b)}
+  button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;touch-action:manipulation}
+  button:active{transform:scale(.97)}
+  button.on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+  button.primary{background:var(--ink);color:var(--card);border-color:var(--ink);font-weight:600}
+  button.rec{color:var(--rec);border-color:var(--rec);font-weight:600}
+  button.rec.active{background:var(--rec);color:#fff}
+  button:disabled{opacity:.4}
+  .nudges{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
+  .nudges button{padding:8px 0;font-size:13px}
+  .offsetbig{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;text-align:center;margin:2px 0 4px}
+  .hint{font-size:13px;color:var(--mute);margin:6px 0 0}
+  .status{font-size:13px;color:var(--mute);min-height:18px;text-align:center;margin-top:8px}
+  canvas{width:100%;height:120px;display:block;border-radius:10px;background:var(--bg);touch-action:none}
+  .transport{display:flex;gap:8px;align-items:center;margin-top:10px}
+  .transport .time{flex:1;text-align:right;font-variant-numeric:tabular-nums;color:var(--mute);font-size:13px;white-space:nowrap}
+  #play{min-width:96px}
+  details{font-size:14px;color:var(--mute)}
+  details summary{cursor:pointer}
+  details p{margin:6px 0}
+  /* metronome */
+  .metro-top{display:flex;align-items:center;gap:8px}
+  .bpm{flex:1;text-align:center}
+  .bpm b{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .bpm span{display:block;font-size:12px;color:var(--mute)}
+  .metro-top button{width:48px;height:48px;font-size:20px;padding:0}
+  .beats{display:flex;gap:10px;justify-content:center;margin:14px 0 6px;min-height:34px;align-items:center}
+  .beat{width:26px;height:26px;border-radius:50%;background:var(--line);transition:transform .05s}
+  .beat.first{width:34px;height:34px}
+  .beat.on{background:var(--ink)}
+  .beat.first.on{background:var(--rec)}
+  .checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;margin-top:8px}
+  .checks label{display:flex;align-items:center;gap:6px}
+  select{font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+  /* recording bar */
+  #recbar{position:sticky;top:0;z-index:5;display:none;background:var(--rec);color:#fff;border-radius:12px;padding:10px 12px;margin-bottom:12px;align-items:center;gap:10px}
+  #recbar.show{display:flex}
+  #recbar .t{flex:1;font-weight:600;font-variant-numeric:tabular-nums}
+  #recbar button{background:#fff;color:var(--rec);border-color:#fff;font-weight:700}
+  .meter{height:6px;border-radius:3px;background:rgba(255,255,255,.3);overflow:hidden;margin-top:4px}
+  .meter i{display:block;height:100%;width:0;background:#fff}
+  .numin{width:80px;font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Harmoniatestaus</h1>
+  <p class="sub">Nauhoita tai lataa kaksi raitaa, kohdista ne ja kuuntele päällekkäin – toinen vasemmalla, toinen oikealla.</p>
+
+  <div id="recbar">
+    <div style="flex:1">
+      <div class="t" id="recText">● Nauhoitetaan</div>
+      <div class="meter"><i id="meter"></i></div>
+    </div>
+    <button id="recStop">■ Lopeta</button>
+  </div>
+
+  <!-- Metronome -->
+  <section class="card" id="metroCard">
+    <h2>Metronomi</h2>
+    <div class="metro-top">
+      <button id="bpmDown">−</button>
+      <div class="bpm"><b id="bpmVal">100</b><span>BPM</span></div>
+      <button id="bpmUp">+</button>
+    </div>
+    <div class="row" style="margin-top:6px"><input type="range" id="bpm" min="40" max="240" step="1" value="100" style="width:100%"></div>
+    <div class="beats" id="beats"></div>
+    <div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap">
+      <button id="metroBtn" class="primary">▶ Metronomi</button>
+      <button id="tap">Tap</button>
+      <select id="sig">
+        <option value="2">2/4</option><option value="3">3/4</option><option value="4" selected>4/4</option><option value="6">6/8</option>
+      </select>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="clickOn" checked> Klikkiääni</label>
+      <label><input type="checkbox" id="countIn" checked> Esilasku nauhoitukseen</label>
+      <label><input type="checkbox" id="clickPlay"> Klikki myös toistossa</label>
+    </div>
+  </section>
+
+  <section class="card ta" id="cardA">
+    <div class="trackhead">
+      <span class="dot"></span>
+      <div class="tname" id="nameA">Raita A <small>– tyhjä</small></div>
+    </div>
+    <div class="btns">
+      <button class="rec" id="recA">● Nauhoita</button>
+      <label class="file">Lataa tiedosto<input type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.caf" id="fileA"></label>
+      <button id="saveA" disabled>Tallenna</button>
+      <button id="undoA" style="display:none">Palauta edellinen</button>
+    </div>
+    <div class="row"><span class="lbl">Voimakkuus</span><input type="range" id="volA" min="0" max="1.5" step="0.01" value="1"><span class="val" id="volAv">100 %</span></div>
+    <div class="row"><span class="lbl">Panorointi</span><input type="range" id="panA" min="-1" max="1" step="0.05" value="-0.4"><span class="val" id="panAv">V 40</span></div>
+    <div class="row"><span class="lbl"></span><button id="muteA">Mykistä</button><button id="soloA">Soolo</button></div>
+  </section>
+
+  <section class="card tb" id="cardB">
+    <div class="trackhead">
+      <span class="dot"></span>
+      <div class="tname" id="nameB">Raita B <small>– tyhjä</small></div>
+    </div>
+    <div class="btns">
+      <button class="rec" id="recB">● Nauhoita</button>
+      <label class="file">Lataa tiedosto<input type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.caf" id="fileB"></label>
+      <button id="saveB" disabled>Tallenna</button>
+      <button id="undoB" style="display:none">Palauta edellinen</button>
+    </div>
+    <div class="row"><span class="lbl">Voimakkuus</span><input type="range" id="volB" min="0" max="1.5" step="0.01" value="1"><span class="val" id="volBv">100 %</span></div>
+    <div class="row"><span class="lbl">Panorointi</span><input type="range" id="panB" min="-1" max="1" step="0.05" value="0.4"><span class="val" id="panBv">O 40</span></div>
+    <div class="row"><span class="lbl"></span><button id="muteB">Mykistä</button><button id="soloB">Soolo</button></div>
+  </section>
+
+  <section class="card">
+    <canvas id="wave"></canvas>
+    <div class="transport">
+      <button id="play" class="primary" disabled>▶ Soita</button>
+      <button id="rew" disabled>⏮</button>
+      <button id="loop" title="Toista silmukkana">⟲ Luuppi</button>
+      <span class="time" id="time">0:00.0 / 0:00.0</span>
+    </div>
+    <p class="hint">Napauta aaltomuotoa siirtyäksesi kohtaan.</p>
+  </section>
+
+  <section class="card">
+    <div style="text-align:center;font-size:14px;color:var(--mute)">Raidan B siirto suhteessa A:han</div>
+    <div class="offsetbig" id="offv">0 ms</div>
+    <input type="range" id="off" min="-5000" max="5000" step="1" value="0" style="width:100%">
+    <div class="nudges">
+      <button data-n="-100">−100</button><button data-n="-10">−10</button><button data-n="-1">−1</button>
+      <button data-n="1">+1</button><button data-n="10">+10</button><button data-n="100">+100</button>
+    </div>
+    <div class="row" style="justify-content:center;margin-top:12px;gap:8px">
+      <button id="auto" class="primary" disabled>Kohdista automaattisesti</button>
+      <button id="zero">Nollaa</button>
+    </div>
+    <div class="status" id="status"></div>
+    <p class="hint">Positiivinen arvo = B alkaa myöhemmin. Tässä nauhoitetut raidat kohdistuvat valmiiksi; säätöä tarvitaan lähinnä ladatuille tiedostoille. Automaattikohdistus toimii parhaiten, jos molemmissa on sama selkeä äänitapahtuma (taputus, sisäänlasku, sama komppi).</p>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:center;margin:0">
+      <button id="export" class="primary" disabled>Tallenna miksaus (WAV)</button>
+    </div>
+    <p class="hint" style="text-align:center">Molemmat raidat stereona nykyisillä asetuksilla.</p>
+  </section>
+
+  <details class="card">
+    <summary>Viiveen korjaus</summary>
+    <p>Nauhoitettu raita siirretään automaattisesti laitteen ilmoittaman viiveen verran aikaisemmaksi. Jos uusi otto kuulostaa silti jäävän jälkeen (tai kiirehtivän), säädä lisäkorjausta. Positiivinen arvo siirtää uusia ottoja aikaisemmaksi.</p>
+    <div class="row"><span class="lbl">Lisäkorjaus</span><input type="number" class="numin" id="latExtra" value="0" step="5"> <span style="font-size:13px">ms</span></div>
+    <p id="latInfo">Laitteen arvioitu viive: –</p>
+    <p>Bluetooth-kuulokkeissa viive on suuri ja vaihtelee; langalliset kuulokkeet toimivat varmimmin.</p>
+  </details>
+
+  <details class="card">
+    <summary>Vinkit</summary>
+    <p><b>Nauhoita kuulokkeilla.</b> Muuten toinen raita ja klikki vuotavat mikrofoniin.</p>
+    <p>Sanelin-appin äänityksen saat ladattua: ⋯ → <b>Tallenna Tiedostoihin</b> → ”Lataa tiedosto”.</p>
+    <p>Jos ääntä ei kuulu, tarkista puhelimen äänetön-kytkin.</p>
+    <p>Kaikki ääni pysyy omalla laitteellasi – mitään ei lähetetä minnekään. Raidat katoavat, kun suljet sivun, joten tallenna ne mitä haluat säilyttää.</p>
+  </details>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const mod = (a,n) => ((a % n) + n) % n;
+  let ctx = null, master = null, clickBus = null;
+  const T = {
+    A: {buf:null, mono:null, peaks:null, gain:null, pan:null, src:null, mute:false, solo:false, color:'--a', name:'', prev:null},
+    B: {buf:null, mono:null, peaks:null, gain:null, pan:null, src:null, mute:false, solo:false, color:'--b', name:'', prev:null}
+  };
+  let offsetMs = 0;
+  let mode = 'idle'; // idle | play | rec | metro
+  let playStartCtx = 0, playStartPos = 0, pos = 0, loop = false, raf = 0;
+  let gridZero = 0, nextK = 0, schedTimer = null, clickNodes = [];
+  let rec = null, captureReady = null;
+
+  // ---------- settings ----------
+  const S = { bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
+  try { Object.assign(S, JSON.parse(localStorage.getItem('harmonia-settings') || '{}')); } catch(e) {}
+  const saveS = () => { try { localStorage.setItem('harmonia-settings', JSON.stringify(S)); } catch(e) {} };
+
+  function setSession(type){ try { if (navigator.audioSession) navigator.audioSession.type = type; } catch(e) {} }
+  setSession('playback');
+
+  function ensureCtx(){
+    if (ctx) return ctx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC({latencyHint:'interactive'});
+    master = ctx.createGain(); master.connect(ctx.destination);
+    clickBus = ctx.createGain(); clickBus.gain.value = 0.8; clickBus.connect(ctx.destination);
+    for (const k of ['A','B']){
+      const t = T[k];
+      t.gain = ctx.createGain();
+      t.pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      if (t.pan){ t.gain.connect(t.pan); t.pan.connect(master); } else t.gain.connect(master);
+      applyTrack(k);
+    }
+    updateLatInfo();
+    return ctx;
+  }
+  async function resumeCtx(){ ensureCtx(); if (ctx.state !== 'running') { try { await ctx.resume(); } catch(e) {} } }
+
+  function anySolo(){ return T.A.solo || T.B.solo; }
+  function applyTrack(k){
+    const t = T[k]; if (!t.gain) return;
+    const vol = parseFloat($('vol'+k).value);
+    const audible = !t.mute && (!anySolo() || t.solo);
+    t.gain.gain.setTargetAtTime(audible ? vol : 0, ctx.currentTime, 0.01);
+    if (t.pan) t.pan.pan.setTargetAtTime(parseFloat($('pan'+k).value), ctx.currentTime, 0.01);
+  }
+
+  // ---------- timeline ----------
+  function starts(){ const o = offsetMs/1000; return { A: o < 0 ? -o : 0, B: o > 0 ? o : 0 }; }
+  function total(){ const s = starts(); let d = 0; for (const k of ['A','B']) if (T[k].buf) d = Math.max(d, s[k] + T[k].buf.duration); return d; }
+  function anchor(){ const s = starts(); return T.A.buf ? s.A : (T.B.buf ? s.B : 0); }
+  function fmt(t){ t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(1); }
+  const spb = () => 60 / S.bpm;
+
+  // ---------- tracks ----------
+  function toMono(buf){
+    const n = buf.length, ch = buf.numberOfChannels, out = new Float32Array(n);
+    for (let c=0;c<ch;c++){ const d = buf.getChannelData(c); for (let i=0;i<n;i++) out[i] += d[i]/ch; }
+    return out;
+  }
+  function computePeaks(mono, sr){
+    const per = Math.max(1, Math.round(sr/200));
+    const n = Math.ceil(mono.length/per), p = new Float32Array(n);
+    let mx = 0;
+    for (let i=0;i<n;i++){ let m=0; const e=Math.min(mono.length,(i+1)*per); for (let j=i*per;j<e;j++){ const v=Math.abs(mono[j]); if(v>m)m=v; } p[i]=m; if(m>mx)mx=m; }
+    if (mx>0) for (let i=0;i<n;i++) p[i]/=mx;
+    return p;
+  }
+  function setTrack(k, buf, name, keepPrev){
+    const t = T[k];
+    if (keepPrev && t.buf) t.prev = { buf:t.buf, mono:t.mono, peaks:t.peaks, name:t.name };
+    else if (!keepPrev) t.prev = null;
+    t.buf = buf; t.name = name;
+    t.mono = buf ? toMono(buf) : null;
+    t.peaks = buf ? computePeaks(t.mono, buf.sampleRate) : null;
+    renderName(k); refreshUI();
+  }
+  function renderName(k){
+    const t = T[k];
+    $('name'+k).innerHTML = t.buf
+      ? t.name.replace(/</g,'&lt;') + ' <small>– ' + fmt(t.buf.duration) + '</small>'
+      : 'Raita ' + k + ' <small>– tyhjä</small>';
+    $('undo'+k).style.display = t.prev ? '' : 'none';
+  }
+  async function loadFile(k, file){
+    ensureCtx();
+    await stopAll();
+    $('name'+k).innerHTML = 'Raita '+k+' <small>– ladataan…</small>';
+    try{
+      const ab = await file.arrayBuffer();
+      const buf = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+      setTrack(k, buf, file.name, true);
+      pos = 0; draw();
+    } catch(e){
+      $('name'+k).innerHTML = 'Raita '+k+' <small>– tiedostoa ei voitu lukea</small>';
+      console.error(e);
+    }
+  }
+
+  // ---------- clicks / scheduler ----------
+  function clickAt(t, accent){
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = accent ? 1760 : 1100;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(accent ? 0.7 : 0.4, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.06);
+    o.connect(g); g.connect(clickBus);
+    o.start(t); o.stop(t + 0.07);
+    clickNodes.push(o);
+    o.onended = () => { const i = clickNodes.indexOf(o); if (i >= 0) clickNodes.splice(i,1); };
+  }
+  function shouldClick(k){
+    if (mode === 'rec' && k < 0) return S.countIn;
+    if (!S.clickOn) return false;
+    if (mode === 'play') return S.clickPlay;
+    return true;
+  }
+  function schedTick(){
+    if (!ctx || mode === 'idle') return;
+    const horizon = ctx.currentTime + 0.15, b = spb();
+    let guard = 0;
+    while (gridZero + nextK*b < horizon && guard++ < 64){
+      const t = gridZero + nextK*b;
+      if (t >= ctx.currentTime - 0.005 && shouldClick(nextK)) clickAt(t, mod(nextK, S.beats) === 0);
+      nextK++;
+    }
+  }
+  function startScheduler(zero, firstK){
+    gridZero = zero; nextK = firstK;
+    if (!schedTimer) schedTimer = setInterval(schedTick, 25);
+    schedTick();
+  }
+  function resyncScheduler(){
+    if (mode === 'idle') return;
+    stopClicks();
+    if (mode === 'metro'){ gridZero = ctx.currentTime + 0.05; nextK = 0; }
+    else nextK = Math.ceil((ctx.currentTime - gridZero)/spb() - 1e-6);
+    schedTick();
+  }
+  function stopScheduler(){ if (schedTimer){ clearInterval(schedTimer); schedTimer = null; } }
+  function stopClicks(){ for (const o of clickNodes.slice()){ try { o.stop(); } catch(e) {} } clickNodes = []; }
+
+  // ---------- playback ----------
+  function startSources(from){
+    stopSources();
+    const s = starts(), now = ctx.currentTime + 0.03;
+    for (const k of ['A','B']){
+      const t = T[k]; if (!t.buf) continue;
+      const local = from - s[k];
+      if (local >= t.buf.duration) continue;
+      const src = ctx.createBufferSource(); src.buffer = t.buf; src.connect(t.gain);
+      if (local >= 0) src.start(now, local); else src.start(now - local, 0);
+      t.src = src;
+    }
+    playStartCtx = now; playStartPos = from;
+    stopClicks();
+    const zero = now - from + anchor();
+    startScheduler(zero, Math.ceil((now - zero)/spb() - 1e-6));
+  }
+  function stopSources(){
+    for (const k of ['A','B']){ const t=T[k]; if (t.src){ try{t.src.stop();}catch(e){} t.src.disconnect(); t.src=null; } }
+  }
+  function curPos(){ return mode === 'play' ? playStartPos + Math.max(0, ctx.currentTime - playStartCtx) : pos; }
+
+  async function play(){
+    await resumeCtx();
+    await stopAll();
+    if (pos >= total() - 0.01) pos = 0;
+    mode = 'play';
+    startSources(pos);
+    refreshUI(); loopFrame();
+  }
+  function stopPlay(){
+    pos = curPos(); stopSources(); stopScheduler(); stopClicks();
+    mode = 'idle'; refreshUI();
+  }
+  function seek(t){
+    t = Math.max(0, Math.min(total(), t));
+    if (mode === 'play') startSources(t); else { pos = t; draw(); }
+  }
+
+  // ---------- metronome only ----------
+  async function startMetro(){
+    await resumeCtx(); await stopAll();
+    mode = 'metro'; startScheduler(ctx.currentTime + 0.08, 0);
+    refreshUI(); loopFrame();
+  }
+  function stopMetro(){ stopScheduler(); stopClicks(); mode = 'idle'; refreshUI(); }
+
+  async function stopAll(){
+    if (mode === 'play') stopPlay();
+    else if (mode === 'metro') stopMetro();
+    else if (mode === 'rec') await finishRecording();
+  }
+
+  // ---------- recording ----------
+  const WORKLET = `
+  class Cap extends AudioWorkletProcessor {
+    constructor(){ super(); this.buf = new Float32Array(4096); this.n = 0; this.f0 = 0; this.on = true;
+      this.port.onmessage = e => { if (e.data === 'stop'){ this.flush(); this.on = false; this.port.postMessage({done:true}); } }; }
+    flush(){ if (this.n > 0){ this.port.postMessage({f0:this.f0, d:this.buf.slice(0, this.n)}); this.n = 0; } }
+    process(inputs){
+      if (!this.on) return false;
+      const ch = inputs[0] && inputs[0][0];
+      if (ch){
+        if (this.n > 0 && this.f0 + this.n !== currentFrame) this.flush();
+        if (this.n === 0) this.f0 = currentFrame;
+        if (this.n + ch.length > this.buf.length) { this.flush(); this.f0 = currentFrame; }
+        this.buf.set(ch, this.n); this.n += ch.length;
+        if (this.n >= this.buf.length - 128) this.flush();
+      }
+      return true;
+    }
+  }
+  registerProcessor('harmonia-cap', Cap);`;
+
+  async function makeCapture(source){
+    const chunks = [];
+    let level = 0;
+    const onChunk = (f0, d) => {
+      chunks.push({f0, d});
+      let m = 0; for (let i=0;i<d.length;i+=4){ const v = Math.abs(d[i]); if (v > m) m = v; }
+      level = Math.max(m, level * 0.8);
+    };
+    const sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
+    if (ctx.audioWorklet){
+      try{
+        if (!captureReady){
+          const url = URL.createObjectURL(new Blob([WORKLET], {type:'application/javascript'}));
+          captureReady = ctx.audioWorklet.addModule(url);
+        }
+        await captureReady;
+        const node = new AudioWorkletNode(ctx, 'harmonia-cap', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[1], channelCount:1, channelCountMode:'explicit'});
+        let doneResolve; const done = new Promise(r => doneResolve = r);
+        node.port.onmessage = e => { if (e.data.done) doneResolve(); else onChunk(e.data.f0, e.data.d); };
+        source.connect(node); node.connect(sink);
+        return {
+          level: () => level,
+          stop: async () => {
+            node.port.postMessage('stop');
+            await Promise.race([done, new Promise(r => setTimeout(r, 500))]);
+            source.disconnect(); node.disconnect(); sink.disconnect();
+            return chunks;
+          }
+        };
+      } catch(e){ console.warn('AudioWorklet ei käytettävissä, käytetään varatapaa', e); captureReady = null; }
+    }
+    // fallback
+    const bs = 2048;
+    const proc = ctx.createScriptProcessor(bs, 1, 1);
+    proc.onaudioprocess = e => {
+      const d = new Float32Array(e.inputBuffer.getChannelData(0));
+      const f0 = Math.round(e.playbackTime * ctx.sampleRate) - 2*bs;
+      onChunk(f0, d);
+    };
+    source.connect(proc); proc.connect(sink);
+    return {
+      level: () => level,
+      stop: async () => { source.disconnect(); proc.disconnect(); sink.disconnect(); proc.onaudioprocess = null; return chunks; }
+    };
+  }
+
+  function deviceLatency(stream){
+    let inLat = 0;
+    try { const s = stream && stream.getAudioTracks()[0].getSettings(); if (s && typeof s.latency === 'number') inLat = s.latency; } catch(e) {}
+    const out = (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
+    return { inLat, out, total: inLat + out };
+  }
+  function updateLatInfo(stream){
+    if (!ctx) return;
+    const l = deviceLatency(stream);
+    $('latInfo').textContent = 'Laitteen arvioitu viive: ' + Math.round(l.total*1000) + ' ms' + (stream ? '' : ' (tarkentuu ensimmäisen nauhoituksen jälkeen)') + '. Kokonaiskorjaus: ' + Math.round(l.total*1000 + S.latExtra) + ' ms.';
+  }
+
+  async function startRecording(k){
+    await resumeCtx();
+    await stopAll();
+    setSession('play-and-record');
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
+    } catch(e){
+      setSession('playback');
+      $('status').textContent = 'Mikrofonia ei saatu käyttöön. Salli mikrofoni selaimen asetuksista.';
+      console.error(e); return;
+    }
+    await resumeCtx();
+    const source = ctx.createMediaStreamSource(stream);
+    const cap = await makeCapture(source);
+    const other = k === 'A' ? 'B' : 'A';
+    const lead = S.countIn ? S.beats * spb() : 0;
+    const Z = ctx.currentTime + 0.25 + lead;
+    let otherSrc = null;
+    if (T[other].buf){
+      otherSrc = ctx.createBufferSource(); otherSrc.buffer = T[other].buf; otherSrc.connect(T[other].gain);
+      otherSrc.start(Z);
+    }
+    mode = 'rec';
+    rec = { k, other, Z, stream, cap, otherSrc };
+    startScheduler(Z, S.countIn ? -S.beats : 0);
+    $('recbar').classList.add('show');
+    refreshUI(); loopFrame();
+  }
+
+  async function finishRecording(){
+    if (!rec) return;
+    const r = rec; rec = null;
+    stopScheduler(); stopClicks();
+    if (r.otherSrc){ try { r.otherSrc.stop(); } catch(e) {} r.otherSrc.disconnect(); }
+    const chunks = await r.cap.stop();
+    const lat = deviceLatency(r.stream);
+    updateLatInfo(r.stream);
+    r.stream.getTracks().forEach(t => t.stop());
+    setSession('playback');
+    mode = 'idle';
+    $('recbar').classList.remove('show');
+
+    const sr = ctx.sampleRate;
+    if (!chunks.length){ $('status').textContent = 'Nauhoitus jäi tyhjäksi.'; refreshUI(); return; }
+    const first = chunks[0].f0;
+    let last = first; for (const c of chunks) last = Math.max(last, c.f0 + c.d.length);
+    const all = new Float32Array(last - first);
+    for (const c of chunks){ const o = c.f0 - first; if (o >= 0) all.set(c.d.subarray(0, Math.min(c.d.length, all.length - o)), o); }
+    // sample captured at context time Z + L corresponds to "beat zero" heard by the singer
+    const L = lat.total + S.latExtra/1000;
+    const startFrame = Math.round((r.Z + L) * sr);
+    let drop = startFrame - first;
+    let data;
+    if (drop >= 0) data = all.subarray(Math.min(drop, all.length));
+    else { data = new Float32Array(all.length - drop); data.set(all, -drop); }
+    if (data.length < sr * 0.3){ $('status').textContent = 'Nauhoitus oli liian lyhyt – yritä uudelleen.'; refreshUI(); return; }
+    const buf = ctx.createBuffer(1, data.length, sr);
+    buf.copyToChannel ? buf.copyToChannel(data, 0) : buf.getChannelData(0).set(data);
+    const d = new Date(), p = x => String(x).padStart(2,'0');
+    setTrack(r.k, buf, 'Otto ' + p(d.getHours()) + ':' + p(d.getMinutes()), true);
+    setOffset(0, false);
+    pos = 0;
+    $('status').textContent = T[r.other].buf
+      ? 'Uusi otto kohdistettu raidan ' + r.other + ' kanssa. Hienosäädä tarvittaessa.'
+      : '';
+    refreshUI();
+  }
+
+  // ---------- drawing ----------
+  const cv = $('wave');
+  function draw(){
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== w*dpr || cv.height !== h*dpr){ cv.width = w*dpr; cv.height = h*dpr; }
+    const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+    const cs = getComputedStyle(document.documentElement);
+    const tot = total(), s = starts();
+    if (tot > 0){
+      for (const [k,y0] of [['A',0],['B',h/2]]){
+        const t = T[k]; if (!t.peaks) continue;
+        g.fillStyle = cs.getPropertyValue(t.color).trim();
+        const mid = y0 + h/4, amp = h/4 - 6;
+        for (let x=0;x<w;x++){
+          const t0 = x/w*tot - s[k], t1 = (x+1)/w*tot - s[k];
+          if (t1 < 0 || t0 > t.buf.duration) continue;
+          const i0 = Math.max(0, Math.floor(t0*200)), i1 = Math.min(t.peaks.length, Math.max(i0+1, Math.ceil(t1*200)));
+          let m = 0; for (let i=i0;i<i1;i++) if (t.peaks[i]>m) m = t.peaks[i];
+          const hh = Math.max(1, m*amp); g.fillRect(x, mid-hh, 1, hh*2);
+        }
+      }
+      g.fillStyle = cs.getPropertyValue('--line').trim(); g.fillRect(0, h/2, w, 1);
+      const px = curPos()/tot*w;
+      g.fillStyle = cs.getPropertyValue('--ink').trim(); g.fillRect(Math.round(px)-1, 0, 2, h);
+    } else {
+      g.fillStyle = cs.getPropertyValue('--mute').trim(); g.font = '14px system-ui'; g.textAlign='center';
+      g.fillText('Nauhoita tai lataa raidat yllä', w/2, h/2+5);
+    }
+    $('time').textContent = fmt(curPos()) + ' / ' + fmt(tot);
+  }
+
+  function buildBeats(){
+    const el = $('beats'); el.innerHTML = '';
+    for (let i=0;i<S.beats;i++){ const d = document.createElement('div'); d.className = 'beat' + (i===0?' first':''); el.appendChild(d); }
+  }
+  function drawBeat(){
+    const dots = $('beats').children;
+    if (mode === 'idle' || !ctx){ for (const d of dots){ d.classList.remove('on'); d.style.transform=''; } return; }
+    const g = ctx.currentTime - (ctx.outputLatency || 0) - gridZero;
+    const b = spb(), k = Math.floor(g/b), ph = g/b - k;
+    const active = mod(k, S.beats);
+    for (let i=0;i<dots.length;i++){
+      const on = i === active && (mode !== 'rec' || k >= -S.beats);
+      dots[i].classList.toggle('on', on);
+      dots[i].style.transform = on ? 'scale(' + (1.25 - 0.25*Math.min(1, ph*3)) + ')' : '';
+    }
+    if (mode === 'rec' && rec){
+      const t = ctx.currentTime - rec.Z;
+      $('recText').textContent = t < 0
+        ? '● Esilasku… ' + (S.beats + k + 1 > 0 ? (mod(k,S.beats)+1) : '')
+        : '● Nauhoitetaan raitaa ' + rec.k + '  ' + fmt(t);
+      $('meter').style.width = Math.min(100, rec.cap.level()*110) + '%';
+    }
+  }
+
+  function loopFrame(){
+    cancelAnimationFrame(raf);
+    const step = () => {
+      if (mode === 'play'){
+        const p = curPos(), tot = total();
+        if (p >= tot){
+          if (loop) startSources(0);
+          else { stopPlay(); pos = 0; draw(); drawBeat(); return; }
+        }
+      }
+      if (mode === 'idle'){ draw(); drawBeat(); return; }
+      if (mode !== 'metro') draw();
+      drawBeat();
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  }
+
+  let dragging = false;
+  function seekFromEvent(e){ const tot = total(); if (!tot || mode === 'rec') return; const r = cv.getBoundingClientRect(); seek((e.clientX - r.left)/r.width*tot); }
+  cv.addEventListener('pointerdown', e => { dragging = true; cv.setPointerCapture(e.pointerId); seekFromEvent(e); });
+  cv.addEventListener('pointermove', e => { if (dragging && mode !== 'play') seekFromEvent(e); });
+  cv.addEventListener('pointerup', e => { if (dragging && mode === 'play') seekFromEvent(e); dragging = false; });
+  window.addEventListener('resize', draw);
+
+  // ---------- offset ----------
+  function setOffset(ms, restart=true){
+    ms = Math.round(ms);
+    offsetMs = ms;
+    const sl = $('off');
+    if (Math.abs(ms) > parseInt(sl.max)) { sl.max = Math.ceil(Math.abs(ms)/1000)*1000; sl.min = -sl.max; }
+    sl.value = ms;
+    $('offv').textContent = (ms>0?'+':'') + ms + ' ms';
+    if (mode === 'play' && restart) startSources(Math.min(curPos(), total()));
+    else pos = Math.min(pos, total());
+    draw();
+  }
+  $('off').addEventListener('input', e => setOffset(parseFloat(e.target.value)));
+  document.querySelectorAll('.nudges button').forEach(b => b.addEventListener('click', () => setOffset(offsetMs + parseInt(b.dataset.n))));
+  $('zero').addEventListener('click', () => { setOffset(0); $('status').textContent=''; });
+
+  // ---------- auto-align ----------
+  function onsetEnv(mono, sr, hop, maxSec){
+    const n = Math.min(mono.length, Math.floor(maxSec*sr));
+    const frames = Math.floor(n/hop), win = hop*2;
+    const e = new Float32Array(frames);
+    for (let f=0; f<frames; f++){ let s = 0; const a = f*hop, b = Math.min(n, a+win); for (let i=a;i<b;i++) s += mono[i]*mono[i]; e[f] = Math.log(1e-8 + s/Math.max(1,b-a)); }
+    const o = new Float32Array(frames);
+    for (let f=1; f<frames; f++){ const d = e[f]-e[f-1]; o[f] = d>0 ? d : 0; }
+    let m=0; for (let f=0;f<frames;f++) m+=o[f]; m/=frames||1;
+    let v=0; for (let f=0;f<frames;f++){ o[f]-=m; v+=o[f]*o[f]; }
+    v = Math.sqrt(v)||1; for (let f=0;f<frames;f++) o[f]/=v;
+    return o;
+  }
+  function resampleTo(mono, srFrom, srTo){
+    if (srFrom === srTo) return mono;
+    const r = srFrom/srTo, n = Math.floor(mono.length/r), out = new Float32Array(n);
+    for (let i=0;i<n;i++){ const x=i*r, j=Math.floor(x), f=x-j; out[i]=mono[j]*(1-f)+(mono[j+1]||0)*f; }
+    return out;
+  }
+  async function autoAlign(){
+    if (!T.A.buf || !T.B.buf) return;
+    $('status').textContent = 'Lasketaan…';
+    await new Promise(r => setTimeout(r, 30));
+    const sr = 16000, maxSec = 90;
+    const a = resampleTo(T.A.mono, T.A.buf.sampleRate, sr), b = resampleTo(T.B.mono, T.B.buf.sampleRate, sr);
+    const eA = onsetEnv(a, sr, 160, maxSec), eB = onsetEnv(b, sr, 160, maxSec);
+    const maxLag = Math.min(1000, Math.max(eA.length, eB.length));
+    const scores = new Float32Array(2*maxLag+1); let best=-Infinity, bk=0;
+    for (let k=-maxLag;k<=maxLag;k++){
+      let s=0; const i0=Math.max(0,k), i1=Math.min(eA.length, eB.length+k);
+      for (let i=i0;i<i1;i++) s += eA[i]*eB[i-k];
+      scores[k+maxLag]=s; if (s>best){best=s;bk=k;}
+    }
+    let second=-Infinity;
+    for (let i=0;i<scores.length;i++) if (Math.abs(i-maxLag-bk) > 10 && scores[i]>second) second=scores[i];
+    const fA = onsetEnv(a, sr, 16, maxSec), fB = onsetEnv(b, sr, 16, maxSec);
+    const center = bk*10; let fb=-Infinity, fk=center;
+    for (let k=center-25;k<=center+25;k++){
+      let s=0; const i0=Math.max(0,k), i1=Math.min(fA.length, fB.length+k);
+      for (let i=i0;i<i1;i++) s += fA[i]*fB[i-k];
+      if (s>fb){fb=s;fk=k;}
+    }
+    setOffset(fk);
+    const ratio = second > 0 ? best/second : 9;
+    $('status').textContent = 'Kohdistettu: ' + (fk>0?'+':'') + fk + ' ms' + (ratio > 1.3 ? '. Tarkista korvakuulolla.' : ' – tulos on epävarma, tarkista korvakuulolla.');
+  }
+  $('auto').addEventListener('click', autoAlign);
+
+  // ---------- export ----------
+  function encodeWav(channels, sr, normalize){
+    const nCh = channels.length, n = channels[0].length;
+    let g = 1;
+    if (normalize){ let peak = 0; for (const c of channels) for (let i=0;i<n;i++){ const a=Math.abs(c[i]); if(a>peak)peak=a; } if (peak > 0.98) g = 0.98/peak; }
+    const bpf = nCh*2, out = new ArrayBuffer(44 + n*bpf), v = new DataView(out);
+    const w = (o,str) => { for (let i=0;i<str.length;i++) v.setUint8(o+i, str.charCodeAt(i)); };
+    w(0,'RIFF'); v.setUint32(4, 36+n*bpf, true); w(8,'WAVE'); w(12,'fmt ');
+    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,nCh,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr*bpf,true); v.setUint16(32,bpf,true); v.setUint16(34,16,true);
+    w(36,'data'); v.setUint32(40, n*bpf, true);
+    let o = 44;
+    for (let i=0;i<n;i++) for (let c=0;c<nCh;c++){ const a = Math.max(-1, Math.min(1, channels[c][i]*g)); v.setInt16(o, a<0 ? a*32768 : a*32767, true); o += 2; }
+    return new Blob([out], {type:'audio/wav'});
+  }
+  function download(blob, name){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  function stamp(){ const d=new Date(), p=x=>String(x).padStart(2,'0'); return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes()); }
+  async function renderMix(){
+    ensureCtx();
+    const tot = total(), sr = ctx.sampleRate;
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const oc = new OAC(2, Math.max(1, Math.ceil(tot*sr)), sr);
+    const s = starts();
+    for (const k of ['A','B']){
+      const t = T[k]; if (!t.buf) continue;
+      if (t.mute || (anySolo() && !t.solo)) continue;
+      const src = oc.createBufferSource(); src.buffer = t.buf;
+      const g = oc.createGain(); g.gain.value = parseFloat($('vol'+k).value);
+      const p = oc.createStereoPanner(); p.pan.value = parseFloat($('pan'+k).value);
+      src.connect(g); g.connect(p); p.connect(oc.destination);
+      src.start(s[k]);
+    }
+    return await oc.startRendering();
+  }
+  $('export').addEventListener('click', async () => {
+    $('export').disabled = true;
+    try { const mix = await renderMix(); download(encodeWav([mix.getChannelData(0), mix.getChannelData(1)], mix.sampleRate, true), 'harmonia-miksaus-' + stamp() + '.wav'); }
+    catch(e){ console.error(e); $('status').textContent = 'Miksauksen tallennus epäonnistui.'; }
+    refreshUI();
+  });
+  for (const k of ['A','B']){
+    $('save'+k).addEventListener('click', () => {
+      const b = T[k].buf; if (!b) return;
+      const ch = []; for (let c=0;c<b.numberOfChannels;c++) ch.push(b.getChannelData(c));
+      download(encodeWav(ch, b.sampleRate, false), 'harmonia-raita' + k + '-' + stamp() + '.wav');
+    });
+    $('undo'+k).addEventListener('click', async () => {
+      const p = T[k].prev; if (!p) return;
+      await stopAll();
+      const t = T[k]; t.buf = p.buf; t.mono = p.mono; t.peaks = p.peaks; t.name = p.name; t.prev = null;
+      renderName(k); refreshUI();
+    });
+  }
+
+  // ---------- controls ----------
+  for (const k of ['A','B']){
+    $('file'+k).addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(k, f); e.target.value=''; });
+    $('vol'+k).addEventListener('input', e => { $('vol'+k+'v').textContent = Math.round(e.target.value*100)+' %'; if (ctx) applyTrack(k); });
+    $('pan'+k).addEventListener('input', e => {
+      const v = Math.round(parseFloat(e.target.value)*100);
+      $('pan'+k+'v').textContent = v===0 ? 'Keski' : (v<0 ? 'V '+(-v) : 'O '+v);
+      if (ctx) applyTrack(k);
+    });
+    $('mute'+k).addEventListener('click', () => { T[k].mute=!T[k].mute; $('mute'+k).classList.toggle('on',T[k].mute); if(ctx){applyTrack('A');applyTrack('B');} });
+    $('solo'+k).addEventListener('click', () => { T[k].solo=!T[k].solo; $('solo'+k).classList.toggle('on',T[k].solo); if(ctx){applyTrack('A');applyTrack('B');} });
+    $('rec'+k).addEventListener('click', () => { if (mode === 'rec') finishRecording(); else startRecording(k); });
+  }
+  $('recStop').addEventListener('click', () => finishRecording());
+  $('play').addEventListener('click', () => mode === 'play' ? stopPlay() : play());
+  $('rew').addEventListener('click', () => seek(0));
+  $('loop').addEventListener('click', () => { loop=!loop; $('loop').classList.toggle('on',loop); });
+  $('metroBtn').addEventListener('click', () => mode === 'metro' ? stopMetro() : startMetro());
+
+  function setBpm(v){
+    S.bpm = Math.max(40, Math.min(240, Math.round(v)));
+    $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; saveS();
+    if (ctx && mode !== 'idle' && mode !== 'rec') resyncScheduler();
+  }
+  $('bpm').addEventListener('input', e => setBpm(parseFloat(e.target.value)));
+  $('bpmDown').addEventListener('click', () => setBpm(S.bpm - 1));
+  $('bpmUp').addEventListener('click', () => setBpm(S.bpm + 1));
+  let taps = [];
+  $('tap').addEventListener('click', () => {
+    const now = performance.now();
+    taps = taps.filter(t => now - t < 2500); taps.push(now);
+    if (taps.length >= 2){
+      const iv = []; for (let i=1;i<taps.length;i++) iv.push(taps[i]-taps[i-1]);
+      const recent = iv.slice(-4); setBpm(60000 / (recent.reduce((a,b)=>a+b,0)/recent.length));
+    }
+  });
+  $('sig').addEventListener('change', e => { S.beats = parseInt(e.target.value); saveS(); buildBeats(); });
+  for (const [id,key] of [['clickOn','clickOn'],['countIn','countIn'],['clickPlay','clickPlay']]){
+    $(id).checked = S[key];
+    $(id).addEventListener('change', e => { S[key] = e.target.checked; saveS(); });
+  }
+  $('latExtra').value = S.latExtra;
+  $('latExtra').addEventListener('change', e => { S.latExtra = parseFloat(e.target.value) || 0; saveS(); updateLatInfo(); });
+
+  function refreshUI(){
+    const any = T.A.buf || T.B.buf, recording = mode === 'rec';
+    $('play').disabled = !any || recording; $('rew').disabled = !any || recording;
+    $('play').textContent = mode === 'play' ? '❚❚ Tauko' : '▶ Soita';
+    $('auto').disabled = !(T.A.buf && T.B.buf) || recording;
+    $('export').disabled = !any || recording;
+    $('metroBtn').textContent = mode === 'metro' ? '■ Pysäytä' : '▶ Metronomi';
+    $('metroBtn').disabled = recording;
+    for (const k of ['A','B']){
+      const r = $('rec'+k), isMe = recording && rec && rec.k === k;
+      r.textContent = isMe ? '■ Lopeta' : (T[k].buf ? '● Nauhoita uusi' : '● Nauhoita');
+      r.classList.toggle('active', isMe);
+      r.disabled = recording && !isMe;
+      $('save'+k).disabled = !T[k].buf || recording;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      for (const k of ['A','B']) { $('rec'+k).disabled = true; $('rec'+k).title = 'Mikrofoni ei ole käytettävissä tällä sivulla (vaatii https-osoitteen).'; }
+    }
+    draw();
+  }
+
+  $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('sig').value = String(S.beats);
+  buildBeats(); refreshUI();
+  window.__h = { T, S, get offset(){ return offsetMs; }, get mode(){ return mode; }, renderMix };
+})();
+</script>
+</body>
+</html>
