@@ -128,6 +128,14 @@
     </div>
   </section>
 
+  <div class="card" style="padding:10px 12px">
+    <div style="font-size:13px;color:var(--mute);margin-bottom:6px">Nauhoitustila</div>
+    <div style="display:flex;gap:6px">
+      <button id="modeSpk" style="flex:1">🔈 Kaiutin – laulu</button>
+      <button id="modeDir" style="flex:1">🎸 Suora – soittimet</button>
+    </div>
+    <p class="hint" id="modeHint"></p>
+  </div>
   <div id="tracks"></div>
   <button id="addTrack">+ Lisää raita</button>
 
@@ -194,6 +202,8 @@
     <summary>Nauhoitusasetukset</summary>
     <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0 4px;color:var(--ink)"><input type="checkbox" id="speakerMode" style="margin-top:3px"> <span><b>Kaiutintila</b> (kokeellinen)</span></label>
     <p style="margin-top:0">Käyttää iPhonen kaiunpoistoa. Tällöin taustaraidan pitäisi kuulua kaiuttimesta eikä kuuloaukosta, ja tausta vuotaa ottoon vähemmän – mutta laulu kuulostaa hieman käsitellyltä. Oletuksena päällä; kuulokkeilla voit ottaa sen pois parhaan äänenlaadun saamiseksi. Kaiutintilassa tehdyt otot merkitään nimeen.</p>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0 4px;color:var(--ink)"><input type="checkbox" id="normalizeRec" style="margin-top:3px"> <span><b>Nosta uuden oton taso automaattisesti</b></span></label>
+    <p style="margin-top:0">Hiljainen otto nostetaan niin, että sen kovin kohta on lähellä täyttä tasoa (enintään +24 dB).</p>
     <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0 4px;color:var(--ink)"><input type="checkbox" id="autoAlignRec" style="margin-top:3px"> <span><b>Kohdista uusi otto automaattisesti</b></span></label>
     <p style="margin-top:0">Nauhoituksen jälkeen otto hienosäädetään taustaraitoja vasten enintään ±200 ms. Jos selvää kohtaa ei löydy, otto jää viivekorjauksen mukaiseen kohtaan.</p>
     <div class="row"><span class="lbl" style="width:auto">Taustan voimakkuus nauhoittaessa</span><input type="range" id="recBg" min="0" max="1" step="0.05"><span class="val" id="recBgV">100 %</span></div>
@@ -219,7 +229,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const mod = (a,n) => ((a % n) + n) % n;
-  const VERSION = '2026-11-15.4';
+  const VERSION = '2026-11-15.5';
   const KEYS = ['A','B','C','D'];
   const PAN = {A:-0.6, B:0.6, C:-0.25, D:0.25};
   let ctx = null, master = null, clickBus = null;
@@ -234,7 +244,7 @@
   let rec = null, captureReady = null;
   let trim = null, trimSrc = null;
 
-  const S = { autoAlignRec:true, speakerMode:true, recBg:1, fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
+  const S = { normalizeRec:true, autoAlignRec:true, speakerMode:true, recBg:1, fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
   try { Object.assign(S, JSON.parse(localStorage.getItem('harmonia-settings') || '{}')); } catch(e) {}
   const saveS = () => { try { localStorage.setItem('harmonia-settings', JSON.stringify(S)); } catch(e) {} };
 
@@ -307,6 +317,7 @@
     if (mode === 'rec') return;
     if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
     setSession('auto'); setSession('playback');
+    if (ctx) ctxDirty = true;   // next tap rebuilds audio so output returns to the speaker
     updateMicPill();
   }
   function updateMicPill(){
@@ -665,6 +676,11 @@
     if (drop >= 0) data = all.subarray(Math.min(drop, all.length));
     else { data = new Float32Array(all.length - drop); data.set(all, -drop); }
     if (data.length < sr * 0.3){ $('status').textContent = 'Nauhoitus oli liian lyhyt – yritä uudelleen.'; refreshUI(); return; }
+    if (S.normalizeRec){
+      let peak = 0; for (let i=0;i<data.length;i++){ const a = Math.abs(data[i]); if (a > peak) peak = a; }
+      const g = peak > 0 ? Math.min(16, 0.9/peak) : 1;   // at most +24 dB
+      if (g > 1.05){ if (data === all || data.buffer === all.buffer) data = new Float32Array(data); for (let i=0;i<data.length;i++) data[i] *= g; }
+    }
     const buf = ctx.createBuffer(1, data.length, sr);
     buf.copyToChannel ? buf.copyToChannel(data, 0) : buf.getChannelData(0).set(data);
     const d = new Date(), p = x => String(x).padStart(2,'0');
@@ -687,6 +703,7 @@
         showNotice('Raita ' + r.k + ' kohdistettu automaattisesti' + (q ? ': ' + (q>0?'+':'') + q + ' ms' : ' (ei korjausta)') + '.', q ? () => { O[r.k] -= q; renorm(); refreshUI(); } : null);
       }
     }
+    if (!r.speaker) releaseMic();
     refreshUI();
   }
 
@@ -1153,11 +1170,24 @@
   }
   function setRecBg(v){
     S.recBg = v; saveS();
-    $('autoAlignRec').checked = !!S.autoAlignRec;
+    $('normalizeRec').checked = !!S.normalizeRec;
+  $('normalizeRec').addEventListener('change', e => { S.normalizeRec = e.target.checked; saveS(); });
+  $('autoAlignRec').checked = !!S.autoAlignRec;
   $('autoAlignRec').addEventListener('change', e => { S.autoAlignRec = e.target.checked; saveS(); });
-  $('speakerMode').checked = !!S.speakerMode;
+  function setSpeakerMode(on){
+    S.speakerMode = !!on; saveS();
+    $('speakerMode').checked = S.speakerMode;
+    $('modeSpk').classList.toggle('on', S.speakerMode);
+    $('modeDir').classList.toggle('on', !S.speakerMode);
+    $('modeHint').textContent = S.speakerMode
+      ? 'Kaiunpoisto päällä: tausta kuuluu kaiuttimesta eikä juuri vuoda ottoon. Sopii laululle, mutta leikkaa soittimia.'
+      : 'Ei käsittelyä: soittimet tallentuvat sellaisenaan. Taustaraita kuuluu nauhoittaessa vain hiljaa (tai kuulokkeista) – nauhoita soitin mieluiten ensimmäiseksi.';
+  }
+  $('modeSpk').addEventListener('click', () => { if (mode !== 'rec' && !S.speakerMode){ setSpeakerMode(true); releaseMic(); } });
+  $('modeDir').addEventListener('click', () => { if (mode !== 'rec' && S.speakerMode){ setSpeakerMode(false); releaseMic(); } });
+  setSpeakerMode(S.speakerMode);
   $('speakerMode').addEventListener('change', e => {
-    S.speakerMode = e.target.checked; saveS();
+    setSpeakerMode(e.target.checked);
     if (mode !== 'rec') releaseMic();   // next take reopens the mic with the new setting
   });
   for (const id of ['recBg','recBgLive']) $(id).value = v;
