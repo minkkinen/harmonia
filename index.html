@@ -117,6 +117,7 @@
         <option value="2">2/4</option><option value="3">3/4</option><option value="4" selected>4/4</option><option value="6">6/8</option>
       </select>
     </div>
+    <div class="status" id="metroStatus" style="margin-top:0;min-height:0"></div>
     <div class="checks">
       <label><input type="checkbox" id="clickOn" checked> Klikkiääni</label>
       <label><input type="checkbox" id="countIn" checked> Esilasku nauhoitukseen</label>
@@ -251,14 +252,20 @@
     </section>`).join('');
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  let micStream = null, ctxBeforeMic = false;
+  let micStream = null, ctxBeforeMic = false, ctxDirty = false;
   const micLive = () => micStream && micStream.getAudioTracks().some(t => t.readyState === 'live');
 
   function ensureCtx(){
     if (ctx && ctx.state !== 'closed') return ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
     ctx = new AC({latencyHint:'interactive'});
-    captureReady = null;
+    captureReady = null; ctxDirty = false;
+    const me = ctx; let wasRunning = false;
+    ctx.onstatechange = () => {
+      if (me !== ctx) return;
+      if (me.state === 'running') wasRunning = true;
+      else if (wasRunning) ctxDirty = true;   // interrupted / suspended by the system
+    };
     master = ctx.createGain(); master.connect(ctx.destination);
     clickBus = ctx.createGain(); clickBus.gain.value = 0.8; clickBus.connect(ctx.destination);
     for (const k of KEYS){
@@ -294,7 +301,37 @@
     updateMicPill();
   }
   function updateMicPill(){ $('micPill').style.display = (micLive() && mode !== 'rec') ? 'flex' : 'none'; }
-  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseMic(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden){ releaseMic(); if (ctx) ctxDirty = true; }
+  });
+  // Called synchronously at the start of every button press, while the tap still
+  // counts as a user gesture: replace a stuck context and unlock audio.
+  function prepCtx(){
+    if (mode === 'rec') return;
+    if (ctx && ctx.state !== 'closed' && (ctxDirty || ctx.state !== 'running')){
+      stopSources(); stopScheduler(); stopClicks();
+      if (trimSrc){ try { trimSrc.stop(); } catch(e) {} trimSrc = null; $('trimPlay').textContent = '▶ Kuuntele'; }
+      if (mode === 'play'){ pos = curPos(); }
+      mode = 'idle';
+      const old = ctx; ctx = null; try { old.close(); } catch(e) {}
+    }
+    ensureCtx();
+    try { ctx.resume(); } catch(e) {}
+    try { const b = ctx.createBuffer(1, 1, ctx.sampleRate), s0 = ctx.createBufferSource(); s0.buffer = b; s0.connect(ctx.destination); s0.start(); } catch(e) {}
+  }
+  // Watchdog: if audio time stops advancing while something should be sounding,
+  // stop cleanly so the next tap rebuilds audio.
+  let wdLast = -1, wdStuck = 0;
+  setInterval(() => {
+    if (!ctx || (mode !== 'play' && mode !== 'metro')){ wdLast = -1; wdStuck = 0; return; }
+    const t = ctx.currentTime;
+    if (t === wdLast){ if (++wdStuck >= 3){
+      wdStuck = 0; ctxDirty = true;
+      if (mode === 'play') stopPlay(); else stopMetro();
+      $('metroStatus').textContent = $('status').textContent = 'Ääni katkesi – paina uudelleen, niin se käynnistyy.';
+    } } else { wdStuck = 0; $('metroStatus').textContent = ''; }
+    wdLast = t;
+  }, 250);
 
   const loaded = () => KEYS.filter(k => T[k].buf);
   function anySolo(){ return KEYS.some(k => T[k].solo); }
@@ -867,6 +904,7 @@
     trim.s = r.s; trim.e = r.e; stopTrimPreview(); updateTrim();
   });
   $('trimPlay').addEventListener('click', async () => {
+    if (!trimSrc) prepCtx();
     if (trimSrc){ stopTrimPreview(); return; }
     await resumeCtx(); await stopAll();
     const t = T[trim.k];
@@ -986,7 +1024,7 @@
     $('pan'+k).addEventListener('input', e => { $('pan'+k+'v').textContent = panLabel(parseFloat(e.target.value)); if (ctx) applyTrack(k); });
     $('mute'+k).addEventListener('click', () => { T[k].mute=!T[k].mute; $('mute'+k).classList.toggle('on',T[k].mute); applyAll(); draw(); });
     $('solo'+k).addEventListener('click', () => { T[k].solo=!T[k].solo; $('solo'+k).classList.toggle('on',T[k].solo); applyAll(); draw(); });
-    $('rec'+k).addEventListener('click', () => { if (mode === 'rec') finishRecording(); else startRecording(k); });
+    $('rec'+k).addEventListener('click', () => { if (mode === 'rec') finishRecording(); else { prepCtx(); startRecording(k); } });
     $('trim'+k).addEventListener('click', () => openTrim(k));
     $('save'+k).addEventListener('click', async () => {
       const b = T[k].buf; if (!b) return;
@@ -1013,10 +1051,10 @@
 
   $('recStop').addEventListener('click', () => finishRecording());
   $('micClose').addEventListener('click', () => releaseMic());
-  $('play').addEventListener('click', () => mode === 'play' ? stopPlay() : play());
+  $('play').addEventListener('click', () => { if (mode === 'play') stopPlay(); else { prepCtx(); play(); } });
   $('rew').addEventListener('click', () => seek(0));
   $('loop').addEventListener('click', () => { loop=!loop; $('loop').classList.toggle('on',loop); });
-  $('metroBtn').addEventListener('click', () => mode === 'metro' ? stopMetro() : startMetro());
+  $('metroBtn').addEventListener('click', () => { if (mode === 'metro') stopMetro(); else { prepCtx(); startMetro(); } });
 
   function setBpm(v){
     S.bpm = Math.max(40, Math.min(240, Math.round(v)));
@@ -1082,7 +1120,7 @@
 
   $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('sig').value = String(S.beats);
   buildBeats(); refreshUI();
-  window.__h = { T, S, O, get mode(){ return mode; }, get visible(){ return visible; }, starts, total, renderMix, detectSilence };
+  window.__h = { get ctx(){ return ctx; }, markDirty(){ ctxDirty = true; }, T, S, O, get mode(){ return mode; }, get visible(){ return visible; }, starts, total, renderMix, detectSilence };
 })();
 </script>
 </body>
