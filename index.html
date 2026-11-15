@@ -92,6 +92,7 @@
     <div style="flex:1">
       <div class="t" id="recText">● Nauhoitetaan</div>
       <div class="meter"><i id="meter"></i></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px">Tausta <input type="range" id="recBgLive" min="0" max="1" step="0.05" style="accent-color:#fff;height:22px"> <span id="recBgLiveV" style="width:36px;text-align:right">100 %</span></div>
     </div>
     <button id="recStop">■ Lopeta</button>
   </div>
@@ -186,7 +187,9 @@
   </section>
 
   <details class="card">
-    <summary>Viiveen korjaus</summary>
+    <summary>Nauhoitusasetukset</summary>
+    <div class="row"><span class="lbl" style="width:auto">Taustan voimakkuus nauhoittaessa</span><input type="range" id="recBg" min="0" max="1" step="0.05"><span class="val" id="recBgV">100 %</span></div>
+    <p>Taustaraidat ja klikki soivat nauhoituksen aikana tällä voimakkuudella. Puhelimen kaiuttimella nauhoittaessa pienempi arvo vähentää taustan vuotamista uuteen ottoon. Kuulokkeilla voit pitää 100 %.</p>
     <p>Nauhoitettu raita siirretään automaattisesti laitteen ilmoittaman viiveen verran aikaisemmaksi. Jos uusi otto kuulostaa silti jäävän jälkeen (tai kiirehtivän), säädä lisäkorjausta. Positiivinen arvo siirtää uusia ottoja aikaisemmaksi.</p>
     <div class="row"><span class="lbl">Lisäkorjaus</span><input type="number" class="numin" id="latExtra" value="0" step="5"> <span style="font-size:13px">ms</span></div>
     <p id="latInfo">Laitteen arvioitu viive: –</p>
@@ -195,7 +198,7 @@
 
   <details class="card">
     <summary>Vinkit</summary>
-    <p><b>Nauhoita kuulokkeilla.</b> Muuten muut raidat ja klikki vuotavat mikrofoniin.</p>
+    <p><b>Kuulokkeilla nauhoitus on puhtainta.</b> Puhelimen kaiuttimella taustaraidat ja klikki vuotavat mikrofoniin – pienennä silloin taustan voimakkuutta nauhoitusasetuksista tai nauhoituspalkista.</p>
     <p>Nauhoittaessa kaikki muut raidat soivat (mykistykset ja soolot huomioiden). Mikrofoni jää auki ottojen välillä, jotta toisto pysyy vakaana; sulje se napista tai siirtymällä pois sivulta.</p>
     <p>Sanelin-appin äänityksen saat ladattua: ⋯ → <b>Tallenna Tiedostoihin</b> → ”Lataa”.</p>
     <p>Jos ääntä ei kuulu, tarkista puhelimen äänetön-kytkin.</p>
@@ -221,7 +224,7 @@
   let rec = null, captureReady = null;
   let trim = null, trimSrc = null;
 
-  const S = { fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
+  const S = { recBg:1, fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
   try { Object.assign(S, JSON.parse(localStorage.getItem('harmonia-settings') || '{}')); } catch(e) {}
   const saveS = () => { try { localStorage.setItem('harmonia-settings', JSON.stringify(S)); } catch(e) {} };
 
@@ -287,7 +290,7 @@
   function releaseMic(){
     if (mode === 'rec') return;
     if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-    setSession('playback');
+    setSession('auto'); setSession('playback');
     updateMicPill();
   }
   function updateMicPill(){ $('micPill').style.display = (micLive() && mode !== 'rec') ? 'flex' : 'none'; }
@@ -539,7 +542,7 @@
     await stopAll(); closeTrim();
     ensureCtx();
     if (!micLive()){
-      setSession('play-and-record');
+      setSession('auto');
       try {
         micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
       } catch(e){
@@ -547,6 +550,8 @@
         $('status').textContent = 'Mikrofonia ei saatu käyttöön. Salli mikrofoni selaimen asetuksista.';
         console.error(e); return;
       }
+      // iOS: switching to play-and-record after the mic is open "kicks" the output route
+      setSession('play-and-record');
       // the audio session just switched to recording mode: start from a fresh context
       await rebuildCtx();
     }
@@ -573,10 +578,17 @@
     rec = { k, others, Z, anchor:anc, stream, cap, srcs };
     startScheduler(Z + anc, S.countIn ? -S.beats : 0);
     rec.bg = others.filter(audible).join(', ');
+    applyRecBg();
     $('recbar').classList.add('show'); updateMicPill();
     refreshUI(); loopFrame();
   }
 
+  function applyRecBg(){
+    if (!ctx) return;
+    const v = mode === 'rec' ? S.recBg : 1;
+    master.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
+    clickBus.gain.setTargetAtTime(0.8 * v, ctx.currentTime, 0.02);
+  }
   async function finishRecording(){
     if (!rec) return;
     const r = rec; rec = null;
@@ -586,6 +598,7 @@
     const lat = deviceLatency(r.stream);
     updateLatInfo(r.stream);
     mode = 'idle';
+    applyRecBg();
     updateMicPill();
     $('recbar').classList.remove('show');
 
@@ -1027,6 +1040,14 @@
     $(key).checked = S[key];
     $(key).addEventListener('change', e => { S[key] = e.target.checked; saveS(); });
   }
+  function setRecBg(v){
+    S.recBg = v; saveS();
+    for (const id of ['recBg','recBgLive']) $(id).value = v;
+    for (const id of ['recBgV','recBgLiveV']) $(id).textContent = Math.round(v*100) + ' %';
+    if (mode === 'rec') applyRecBg();
+  }
+  for (const id of ['recBg','recBgLive']) $(id).addEventListener('input', e => setRecBg(parseFloat(e.target.value)));
+  setRecBg(S.recBg);
   $('fmt').value = S.fmt;
   $('fmt').addEventListener('change', e => { S.fmt = e.target.value; saveS(); });
   $('latExtra').value = S.latExtra;
