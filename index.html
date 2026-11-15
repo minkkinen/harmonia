@@ -826,17 +826,24 @@
       const g = parseFloat($('vol'+j).value) || 1;
       for (let i = Math.max(0, -off); i < m.length && off + i < len; i++) ref[off+i] += m[i]*g;
     }
-    const eR = onsetEnv(ref, sr, 16, maxSec), eT = onsetEnv(tk, sr, 16, maxSec);
-    const sc = new Float32Array(2*W+1); let best = -Infinity, bq = 0;
-    for (let q=-W; q<=W; q++){
-      let s = 0; const i0 = Math.max(0,q), i1 = Math.min(eR.length, eT.length+q);
-      for (let i=i0;i<i1;i++) s += eR[i]*eT[i-q];
-      sc[q+W] = s; if (s > best){ best = s; bq = q; }
+    const xc = (A, B, q) => { let s = 0; const i0 = Math.max(0,q), i1 = Math.min(A.length, B.length+q); for (let i=i0;i<i1;i++) s += A[i]*B[i-q]; return s; };
+    // coarse (10 ms frames): scan ±1 s for statistics, but accept a peak only within ±W ms
+    const cR = onsetEnv(ref, sr, 160, maxSec), cT = onsetEnv(tk, sr, 160, maxSec);
+    const WIDE = 100, NEAR = Math.round(W/10);
+    const sc = []; let best = -Infinity, bq = 0, nearBest = -Infinity, nq = 0;
+    for (let q=-WIDE; q<=WIDE; q++){
+      const v = xc(cR, cT, q); sc.push(v);
+      if (v > best){ best = v; bq = q; }
+      if (Math.abs(q) <= NEAR && v > nearBest){ nearBest = v; nq = q; }
     }
     let mean = 0; for (const v of sc) mean += v; mean /= sc.length;
     let sd = 0; for (const v of sc) sd += (v-mean)*(v-mean); sd = Math.sqrt(sd/sc.length) || 1e-9;
-    if (best <= 0 || (best - mean)/sd < 4 || Math.abs(bq) >= W - 2) return null;
-    return bq;
+    if (nearBest <= 0 || (nearBest - mean)/sd < 2.5 || nearBest < 0.85*best || Math.abs(nq) >= NEAR) return null;
+    // fine (1 ms frames) around the coarse peak
+    const fR = onsetEnv(ref, sr, 16, maxSec), fT = onsetEnv(tk, sr, 16, maxSec);
+    let fb = -Infinity, fq = nq*10;
+    for (let q = nq*10 - 15; q <= nq*10 + 15; q++){ const v = xc(fR, fT, q); if (v > fb){ fb = v; fq = q; } }
+    return fq;
   }
   function resampleTo(mono, srFrom, srTo){
     if (srFrom === srTo) return mono;
