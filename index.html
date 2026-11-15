@@ -174,9 +174,11 @@
 
   <section class="card">
     <div class="row" style="justify-content:center;margin:0">
-      <button id="export" class="primary" disabled>Tallenna miksaus (WAV)</button>
+      <button id="export" class="primary" disabled>Tallenna miksaus</button>
+      <select id="fmt" style="margin-left:8px"><option value="mp3">MP3</option><option value="wav">WAV</option></select>
     </div>
-    <p class="hint" style="text-align:center">Molemmat raidat stereona nykyisillä asetuksilla.</p>
+    <p class="hint" style="text-align:center">Molemmat raidat stereona nykyisillä asetuksilla. Valittu muoto koskee myös raitojen Tallenna-nappeja.</p>
+    <div class="status" id="saveStatus"></div>
   </section>
 
   <details class="card">
@@ -212,7 +214,7 @@
   let rec = null, captureReady = null;
 
   // ---------- settings ----------
-  const S = { bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
+  const S = { fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
   try { Object.assign(S, JSON.parse(localStorage.getItem('harmonia-settings') || '{}')); } catch(e) {}
   const saveS = () => { try { localStorage.setItem('harmonia-settings', JSON.stringify(S)); } catch(e) {} };
 
@@ -707,6 +709,46 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
+  let lamePromise = null;
+  function loadLame(){
+    if (window.lamejs) return Promise.resolve(window.lamejs);
+    if (!lamePromise) lamePromise = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
+      sc.onload = () => window.lamejs ? res(window.lamejs) : rej(new Error('lamejs puuttuu'));
+      sc.onerror = () => { lamePromise = null; rej(new Error('lataus epäonnistui')); };
+      document.head.appendChild(sc);
+    });
+    return lamePromise;
+  }
+  async function encodeMp3(channels, sr, normalize){
+    const lame = await loadLame();
+    const nCh = Math.min(2, channels.length), n = channels[0].length;
+    let g = 1;
+    if (normalize){ let peak = 0; for (const c of channels) for (let i=0;i<n;i++){ const a=Math.abs(c[i]); if(a>peak)peak=a; } if (peak > 0.98) g = 0.98/peak; }
+    const toI16 = c => { const o = new Int16Array(n); for (let i=0;i<n;i++){ const a = Math.max(-1, Math.min(1, c[i]*g)); o[i] = a<0 ? a*32768 : a*32767; } return o; };
+    const L = toI16(channels[0]), R = nCh > 1 ? toI16(channels[1]) : null;
+    const enc = new lame.Mp3Encoder(nCh, sr, nCh > 1 ? 192 : 128);
+    const parts = [], block = 1152;
+    for (let i=0, b=0; i<n; i+=block, b++){
+      const out = R ? enc.encodeBuffer(L.subarray(i, i+block), R.subarray(i, i+block)) : enc.encodeBuffer(L.subarray(i, i+block));
+      if (out.length) parts.push(new Uint8Array(out));
+      if (b % 400 === 399){ $('saveStatus').textContent = 'Pakataan MP3… ' + Math.round(i/n*100) + ' %'; await new Promise(r => setTimeout(r, 0)); }
+    }
+    const end = enc.flush(); if (end.length) parts.push(new Uint8Array(end));
+    return new Blob(parts, {type:'audio/mpeg'});
+  }
+  async function saveAudio(channels, sr, normalize, base){
+    const st = $('saveStatus');
+    if (S.fmt === 'mp3'){
+      try {
+        st.textContent = 'Pakataan MP3…';
+        const blob = await encodeMp3(channels, sr, normalize);
+        download(blob, base + '.mp3'); st.textContent = ''; return;
+      } catch(e){ console.error(e); st.textContent = 'MP3-pakkaus ei onnistunut (tarvitsee verkkoyhteyden ensimmäisellä kerralla) – tallennettiin WAV-muodossa.'; }
+    }
+    download(encodeWav(channels, sr, normalize), base + '.wav');
+  }
   function stamp(){ const d=new Date(), p=x=>String(x).padStart(2,'0'); return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes()); }
   async function renderMix(){
     ensureCtx();
@@ -727,15 +769,17 @@
   }
   $('export').addEventListener('click', async () => {
     $('export').disabled = true;
-    try { const mix = await renderMix(); download(encodeWav([mix.getChannelData(0), mix.getChannelData(1)], mix.sampleRate, true), 'harmonia-miksaus-' + stamp() + '.wav'); }
+    try { const mix = await renderMix(); await saveAudio([mix.getChannelData(0), mix.getChannelData(1)], mix.sampleRate, true, 'harmonia-miksaus-' + stamp()); }
     catch(e){ console.error(e); $('status').textContent = 'Miksauksen tallennus epäonnistui.'; }
     refreshUI();
   });
   for (const k of ['A','B']){
-    $('save'+k).addEventListener('click', () => {
+    $('save'+k).addEventListener('click', async () => {
       const b = T[k].buf; if (!b) return;
       const ch = []; for (let c=0;c<b.numberOfChannels;c++) ch.push(b.getChannelData(c));
-      download(encodeWav(ch, b.sampleRate, false), 'harmonia-raita' + k + '-' + stamp() + '.wav');
+      $('save'+k).disabled = true;
+      await saveAudio(ch, b.sampleRate, false, 'harmonia-raita' + k + '-' + stamp());
+      refreshUI();
     });
     $('undo'+k).addEventListener('click', async () => {
       const p = T[k].prev; if (!p) return;
@@ -786,6 +830,8 @@
     $(id).checked = S[key];
     $(id).addEventListener('change', e => { S[key] = e.target.checked; saveS(); });
   }
+  $('fmt').value = S.fmt;
+  $('fmt').addEventListener('change', e => { S.fmt = e.target.value; saveS(); });
   $('latExtra').value = S.latExtra;
   $('latExtra').addEventListener('change', e => { S.latExtra = parseFloat(e.target.value) || 0; saveS(); updateLatInfo(); });
 
