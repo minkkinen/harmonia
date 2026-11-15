@@ -8,10 +8,10 @@
 <style>
   :root{
     --bg:#f6f4ef; --card:#fff; --ink:#1f1d1a; --mute:#6f6a62; --line:#e2ded5;
-    --a:#c4572e; --b:#2e6fa8; --accent:#1f1d1a; --rec:#d22f2f;
+    --a:#c4572e; --b:#2e6fa8; --c:#4f8a3c; --d:#8a4fa8; --accent:#1f1d1a; --rec:#d22f2f;
   }
   @media (prefers-color-scheme:dark){
-    :root{--bg:#161513;--card:#201f1c;--ink:#ece8e1;--mute:#9a948a;--line:#34312c;--a:#e07a50;--b:#5f9bd4;--accent:#ece8e1;--rec:#ff5a5a;}
+    :root{--bg:#161513;--card:#201f1c;--ink:#ece8e1;--mute:#9a948a;--line:#34312c;--a:#e07a50;--b:#5f9bd4;--c:#7dbb68;--d:#b783d1;--accent:#ece8e1;--rec:#ff5a5a;}
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
@@ -21,8 +21,8 @@
   .sub{color:var(--mute);font-size:14px;margin:0 0 16px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
   .trackhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-  .dot{width:12px;height:12px;border-radius:50%;flex:none}
-  .ta .dot{background:var(--a)} .tb .dot{background:var(--b)}
+  .dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--tc)}
+  .trk input[type=range]{accent-color:var(--tc)}
   .tname{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tname small{font-weight:400;color:var(--mute)}
   .btns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
@@ -30,29 +30,28 @@
   label.file input{display:none}
   .row{display:flex;align-items:center;gap:10px;margin:8px 0}
   .row .lbl{width:74px;font-size:14px;color:var(--mute);flex:none}
-  .row .val{width:52px;text-align:right;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;flex:none}
+  .row .val{width:58px;text-align:right;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;flex:none}
   input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:28px}
-  .ta input[type=range]{accent-color:var(--a)} .tb input[type=range]{accent-color:var(--b)}
-  button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;touch-action:manipulation}
+  button{white-space:nowrap;font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;touch-action:manipulation}
   button:active{transform:scale(.97)}
   button.on{background:var(--ink);color:var(--card);border-color:var(--ink)}
   button.primary{background:var(--ink);color:var(--card);border-color:var(--ink);font-weight:600}
   button.rec{color:var(--rec);border-color:var(--rec);font-weight:600}
   button.rec.active{background:var(--rec);color:#fff}
   button:disabled{opacity:.4}
+  button.small{padding:6px 10px;font-size:13px}
   .nudges{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
   .nudges button{padding:8px 0;font-size:13px}
   .offsetbig{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums;text-align:center;margin:2px 0 4px}
   .hint{font-size:13px;color:var(--mute);margin:6px 0 0}
   .status{font-size:13px;color:var(--mute);min-height:18px;text-align:center;margin-top:8px}
-  canvas{width:100%;height:120px;display:block;border-radius:10px;background:var(--bg);touch-action:none}
+  canvas{width:100%;display:block;border-radius:10px;background:var(--bg);touch-action:none}
   .transport{display:flex;gap:8px;align-items:center;margin-top:10px}
   .transport .time{flex:1;text-align:right;font-variant-numeric:tabular-nums;color:var(--mute);font-size:13px;white-space:nowrap}
   #play{min-width:96px}
   details{font-size:14px;color:var(--mute)}
   details summary{cursor:pointer}
   details p{margin:6px 0}
-  /* metronome */
   .metro-top{display:flex;align-items:center;gap:8px}
   .bpm{flex:1;text-align:center}
   .bpm b{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
@@ -66,7 +65,6 @@
   .checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;margin-top:8px}
   .checks label{display:flex;align-items:center;gap:6px}
   select{font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
-  /* recording bar */
   #recbar{position:sticky;top:0;z-index:5;display:none;background:var(--rec);color:#fff;border-radius:12px;padding:10px 12px;margin-bottom:12px;align-items:center;gap:10px}
   #recbar.show{display:flex}
   #recbar .t{flex:1;font-weight:600;font-variant-numeric:tabular-nums}
@@ -74,12 +72,21 @@
   .meter{height:6px;border-radius:3px;background:rgba(255,255,255,.3);overflow:hidden;margin-top:4px}
   .meter i{display:block;height:100%;width:0;background:#fff}
   .numin{width:80px;font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+  #addTrack{width:100%;margin-bottom:12px;border-style:dashed;color:var(--mute)}
+  #trimCard{display:none;border:2px solid var(--tc)}
+  #trimCard.show{display:block}
+  #trimWave{height:100px}
+  .tn{display:grid;grid-template-columns:60px repeat(4,1fr);gap:6px;align-items:center;margin-top:6px}
+  .tn .lbl{font-size:14px;color:var(--mute)}
+  .tn button{padding:7px 0;font-size:13px}
+  .trk .btns button,.trk label.file{padding:6px 10px;font-size:13px}
+  .trimvals{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;margin-top:6px}
 </style>
 </head>
 <body>
 <main>
   <h1>Harmoniatestaus</h1>
-  <p class="sub">Nauhoita tai lataa kaksi raitaa, kohdista ne ja kuuntele päällekkäin – toinen vasemmalla, toinen oikealla.</p>
+  <p class="sub">Nauhoita tai lataa raitoja, kohdista ne ja kuuntele päällekkäin eri suunnista.</p>
 
   <div id="recbar">
     <div style="flex:1">
@@ -89,7 +96,6 @@
     <button id="recStop">■ Lopeta</button>
   </div>
 
-  <!-- Metronome -->
   <section class="card" id="metroCard">
     <h2>Metronomi</h2>
     <div class="metro-top">
@@ -113,36 +119,28 @@
     </div>
   </section>
 
-  <section class="card ta" id="cardA">
-    <div class="trackhead">
-      <span class="dot"></span>
-      <div class="tname" id="nameA">Raita A <small>– tyhjä</small></div>
-    </div>
-    <div class="btns">
-      <button class="rec" id="recA">● Nauhoita</button>
-      <label class="file">Lataa tiedosto<input type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.caf" id="fileA"></label>
-      <button id="saveA" disabled>Tallenna</button>
-      <button id="undoA" style="display:none">Palauta edellinen</button>
-    </div>
-    <div class="row"><span class="lbl">Voimakkuus</span><input type="range" id="volA" min="0" max="1.5" step="0.01" value="1"><span class="val" id="volAv">100 %</span></div>
-    <div class="row"><span class="lbl">Panorointi</span><input type="range" id="panA" min="-1" max="1" step="0.05" value="-0.4"><span class="val" id="panAv">V 40</span></div>
-    <div class="row"><span class="lbl"></span><button id="muteA">Mykistä</button><button id="soloA">Soolo</button></div>
-  </section>
+  <div id="tracks"></div>
+  <button id="addTrack">+ Lisää raita</button>
 
-  <section class="card tb" id="cardB">
-    <div class="trackhead">
-      <span class="dot"></span>
-      <div class="tname" id="nameB">Raita B <small>– tyhjä</small></div>
+  <section class="card" id="trimCard">
+    <h2 id="trimTitle">Trimmaa raita</h2>
+    <canvas id="trimWave"></canvas>
+    <div class="trimvals"><span id="trimSv">Alku 0:00.00</span><span id="trimLen"></span><span id="trimEv">Loppu 0:00.00</span></div>
+    <div class="row"><span class="lbl">Alku</span><input type="range" id="trimS" min="0" max="1" step="0.01" value="0"></div>
+    <div class="row"><span class="lbl">Loppu</span><input type="range" id="trimE" min="0" max="1" step="0.01" value="1"></div>
+    <div id="trimNudges">
+      <div class="tn"><span class="lbl">Alku</span><button data-w="s" data-n="-0.5">−0,5</button><button data-w="s" data-n="-0.05">−0,05</button><button data-w="s" data-n="0.05">+0,05</button><button data-w="s" data-n="0.5">+0,5</button></div>
+      <div class="tn"><span class="lbl">Loppu</span><button data-w="e" data-n="-0.5">−0,5</button><button data-w="e" data-n="-0.05">−0,05</button><button data-w="e" data-n="0.05">+0,05</button><button data-w="e" data-n="0.5">+0,5</button></div>
     </div>
-    <div class="btns">
-      <button class="rec" id="recB">● Nauhoita</button>
-      <label class="file">Lataa tiedosto<input type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.caf" id="fileB"></label>
-      <button id="saveB" disabled>Tallenna</button>
-      <button id="undoB" style="display:none">Palauta edellinen</button>
+    <div class="row" style="justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button id="trimAuto">Etsi hiljaisuus</button>
+      <button id="trimPlay">▶ Kuuntele</button>
     </div>
-    <div class="row"><span class="lbl">Voimakkuus</span><input type="range" id="volB" min="0" max="1.5" step="0.01" value="1"><span class="val" id="volBv">100 %</span></div>
-    <div class="row"><span class="lbl">Panorointi</span><input type="range" id="panB" min="-1" max="1" step="0.05" value="0.4"><span class="val" id="panBv">O 40</span></div>
-    <div class="row"><span class="lbl"></span><button id="muteB">Mykistä</button><button id="soloB">Soolo</button></div>
+    <div class="row" style="justify-content:center;gap:8px;margin-top:4px">
+      <button id="trimApply" class="primary">Käytä</button>
+      <button id="trimCancel">Peru</button>
+    </div>
+    <p class="hint">Napauta aaltomuotoa: lähempi reuna siirtyy siihen kohtaan. Raita pysyy kohdistettuna muihin trimmauksen jälkeenkin.</p>
   </section>
 
   <section class="card">
@@ -157,10 +155,12 @@
   </section>
 
   <section class="card">
-    <div style="text-align:center;font-size:14px;color:var(--mute)">Raidan B siirto suhteessa A:han</div>
+    <div class="row" style="justify-content:center;margin:0 0 4px;font-size:14px;color:var(--mute)">
+      Siirrä raitaa <select id="offSel"></select> suhteessa A:han
+    </div>
     <div class="offsetbig" id="offv">0 ms</div>
     <input type="range" id="off" min="-5000" max="5000" step="1" value="0" style="width:100%">
-    <div class="nudges">
+    <div class="nudges" id="offNudges">
       <button data-n="-100">−100</button><button data-n="-10">−10</button><button data-n="-1">−1</button>
       <button data-n="1">+1</button><button data-n="10">+10</button><button data-n="100">+100</button>
     </div>
@@ -169,7 +169,7 @@
       <button id="zero">Nollaa</button>
     </div>
     <div class="status" id="status"></div>
-    <p class="hint">Positiivinen arvo = B alkaa myöhemmin. Tässä nauhoitetut raidat kohdistuvat valmiiksi; säätöä tarvitaan lähinnä ladatuille tiedostoille. Automaattikohdistus toimii parhaiten, jos molemmissa on sama selkeä äänitapahtuma (taputus, sisäänlasku, sama komppi).</p>
+    <p class="hint">Positiivinen arvo = raita alkaa myöhemmin kuin A. Tässä nauhoitetut raidat kohdistuvat valmiiksi; säätöä tarvitaan lähinnä ladatuille tiedostoille. Automaattikohdistus vertaa raitaa A:han ja toimii parhaiten, jos molemmissa on sama selkeä äänitapahtuma (taputus, sisäänlasku, sama komppi).</p>
   </section>
 
   <section class="card">
@@ -177,7 +177,7 @@
       <button id="export" class="primary" disabled>Tallenna miksaus</button>
       <select id="fmt" style="margin-left:8px"><option value="mp3">MP3</option><option value="wav">WAV</option></select>
     </div>
-    <p class="hint" style="text-align:center">Molemmat raidat stereona nykyisillä asetuksilla. Valittu muoto koskee myös raitojen Tallenna-nappeja.</p>
+    <p class="hint" style="text-align:center">Kaikki raidat stereona nykyisillä asetuksilla. Valittu muoto koskee myös raitojen Tallenna-nappeja.</p>
     <div class="status" id="saveStatus"></div>
   </section>
 
@@ -191,8 +191,9 @@
 
   <details class="card">
     <summary>Vinkit</summary>
-    <p><b>Nauhoita kuulokkeilla.</b> Muuten toinen raita ja klikki vuotavat mikrofoniin.</p>
-    <p>Sanelin-appin äänityksen saat ladattua: ⋯ → <b>Tallenna Tiedostoihin</b> → ”Lataa tiedosto”.</p>
+    <p><b>Nauhoita kuulokkeilla.</b> Muuten muut raidat ja klikki vuotavat mikrofoniin.</p>
+    <p>Nauhoittaessa kaikki muut raidat soivat (mykistykset ja soolot huomioiden).</p>
+    <p>Sanelin-appin äänityksen saat ladattua: ⋯ → <b>Tallenna Tiedostoihin</b> → ”Lataa”.</p>
     <p>Jos ääntä ei kuulu, tarkista puhelimen äänetön-kytkin.</p>
     <p>Kaikki ääni pysyy omalla laitteellasi – mitään ei lähetetä minnekään. Raidat katoavat, kun suljet sivun, joten tallenna ne mitä haluat säilyttää.</p>
   </details>
@@ -202,18 +203,20 @@
 (() => {
   const $ = id => document.getElementById(id);
   const mod = (a,n) => ((a % n) + n) % n;
+  const KEYS = ['A','B','C','D'];
+  const PAN = {A:-0.6, B:0.6, C:-0.25, D:0.25};
   let ctx = null, master = null, clickBus = null;
-  const T = {
-    A: {buf:null, mono:null, peaks:null, gain:null, pan:null, src:null, mute:false, solo:false, color:'--a', name:'', prev:null},
-    B: {buf:null, mono:null, peaks:null, gain:null, pan:null, src:null, mute:false, solo:false, color:'--b', name:'', prev:null}
-  };
-  let offsetMs = 0;
+  const T = {};
+  for (const k of KEYS) T[k] = {buf:null, mono:null, peaks:null, gain:null, pan:null, src:null, mute:false, solo:false, name:'', prev:null};
+  const O = {A:0, B:0, C:0, D:0};   // offsets in ms, relative to A
+  let visible = 2;
+  let offSel = 'B';
   let mode = 'idle'; // idle | play | rec | metro
   let playStartCtx = 0, playStartPos = 0, pos = 0, loop = false, raf = 0;
   let gridZero = 0, nextK = 0, schedTimer = null, clickNodes = [];
   let rec = null, captureReady = null;
+  let trim = null, trimSrc = null;
 
-  // ---------- settings ----------
   const S = { fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
   try { Object.assign(S, JSON.parse(localStorage.getItem('harmonia-settings') || '{}')); } catch(e) {}
   const saveS = () => { try { localStorage.setItem('harmonia-settings', JSON.stringify(S)); } catch(e) {} };
@@ -221,13 +224,32 @@
   function setSession(type){ try { if (navigator.audioSession) navigator.audioSession.type = type; } catch(e) {} }
   setSession('playback');
 
+  // ---------- track cards ----------
+  const ACCEPT = 'audio/*,.m4a,.mp3,.wav,.aac,.caf';
+  function panLabel(v){ v = Math.round(v*100); return v===0 ? 'Keski' : (v<0 ? 'V '+(-v) : 'O '+v); }
+  $('tracks').innerHTML = KEYS.map(k => `
+    <section class="card trk" id="card${k}" style="--tc:var(--${k.toLowerCase()})">
+      <div class="trackhead"><span class="dot"></span><div class="tname" id="name${k}"></div></div>
+      <div class="btns">
+        <button class="rec" id="rec${k}">● Nauhoita</button>
+        <label class="file">Lataa<input type="file" accept="${ACCEPT}" id="file${k}"></label>
+        <button id="trim${k}" disabled>Trimmaa</button>
+        <button id="save${k}" disabled>Tallenna</button>
+        <button id="undo${k}" style="display:none">Palauta</button>
+        <button id="clear${k}" style="display:none">Tyhjennä</button>
+      </div>
+      <div class="row"><span class="lbl">Voimakkuus</span><input type="range" id="vol${k}" min="0" max="1.5" step="0.01" value="1"><span class="val" id="vol${k}v">100 %</span></div>
+      <div class="row"><span class="lbl">Panorointi</span><input type="range" id="pan${k}" min="-1" max="1" step="0.05" value="${PAN[k]}"><span class="val" id="pan${k}v">${panLabel(PAN[k])}</span></div>
+      <div class="row"><span class="lbl"></span><button id="mute${k}">Mykistä</button><button id="solo${k}">Soolo</button></div>
+    </section>`).join('');
+
   function ensureCtx(){
     if (ctx) return ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
     ctx = new AC({latencyHint:'interactive'});
     master = ctx.createGain(); master.connect(ctx.destination);
     clickBus = ctx.createGain(); clickBus.gain.value = 0.8; clickBus.connect(ctx.destination);
-    for (const k of ['A','B']){
+    for (const k of KEYS){
       const t = T[k];
       t.gain = ctx.createGain();
       t.pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
@@ -239,20 +261,30 @@
   }
   async function resumeCtx(){ ensureCtx(); if (ctx.state !== 'running') { try { await ctx.resume(); } catch(e) {} } }
 
-  function anySolo(){ return T.A.solo || T.B.solo; }
+  const loaded = () => KEYS.filter(k => T[k].buf);
+  function anySolo(){ return KEYS.some(k => T[k].solo); }
+  function audible(k){ return !T[k].mute && (!anySolo() || T[k].solo); }
   function applyTrack(k){
     const t = T[k]; if (!t.gain) return;
-    const vol = parseFloat($('vol'+k).value);
-    const audible = !t.mute && (!anySolo() || t.solo);
-    t.gain.gain.setTargetAtTime(audible ? vol : 0, ctx.currentTime, 0.01);
+    t.gain.gain.setTargetAtTime(audible(k) ? parseFloat($('vol'+k).value) : 0, ctx.currentTime, 0.01);
     if (t.pan) t.pan.pan.setTargetAtTime(parseFloat($('pan'+k).value), ctx.currentTime, 0.01);
   }
+  const applyAll = () => { if (ctx) KEYS.forEach(applyTrack); };
 
   // ---------- timeline ----------
-  function starts(){ const o = offsetMs/1000; return { A: o < 0 ? -o : 0, B: o > 0 ? o : 0 }; }
-  function total(){ const s = starts(); let d = 0; for (const k of ['A','B']) if (T[k].buf) d = Math.max(d, s[k] + T[k].buf.duration); return d; }
-  function anchor(){ const s = starts(); return T.A.buf ? s.A : (T.B.buf ? s.B : 0); }
-  function fmt(t){ t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(1); }
+  // start time (s) of each track on the global timeline, given which tracks count
+  function startsFor(keys){
+    const st = {}; let m = Infinity;
+    for (const k of keys) m = Math.min(m, O[k]);
+    if (!isFinite(m)) m = 0;
+    for (const k of KEYS) st[k] = (O[k] - m)/1000;
+    return st;
+  }
+  const starts = () => startsFor(loaded());
+  function total(){ const s = starts(); let d = 0; for (const k of loaded()) d = Math.max(d, s[k] + T[k].buf.duration); return d; }
+  function anchor(){ const s = starts(), l = loaded(); return T.A.buf ? s.A : (l.length ? s[l[0]] : 0); }
+  function renorm(){ if (T.A.buf && O.A !== 0){ const a = O.A; for (const k of KEYS) O[k] -= a; } }
+  function fmt(t, d=1){ t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(d); }
   const spb = () => 60 / S.bpm;
 
   // ---------- tracks ----------
@@ -269,33 +301,36 @@
     if (mx>0) for (let i=0;i<n;i++) p[i]/=mx;
     return p;
   }
-  function setTrack(k, buf, name, keepPrev){
+  function snapshot(k){ const t = T[k]; return { buf:t.buf, mono:t.mono, peaks:t.peaks, name:t.name, O:{...O} }; }
+  function setTrack(k, buf, name){
     const t = T[k];
-    if (keepPrev && t.buf) t.prev = { buf:t.buf, mono:t.mono, peaks:t.peaks, name:t.name };
-    else if (!keepPrev) t.prev = null;
+    if (t.buf) t.prev = snapshot(k);
     t.buf = buf; t.name = name;
     t.mono = buf ? toMono(buf) : null;
     t.peaks = buf ? computePeaks(t.mono, buf.sampleRate) : null;
-    renderName(k); refreshUI();
+    const idx = KEYS.indexOf(k) + 1; if (idx > visible) visible = idx;
+    renderName(k);
   }
   function renderName(k){
     const t = T[k];
     $('name'+k).innerHTML = t.buf
       ? t.name.replace(/</g,'&lt;') + ' <small>– ' + fmt(t.buf.duration) + '</small>'
       : 'Raita ' + k + ' <small>– tyhjä</small>';
-    $('undo'+k).style.display = t.prev ? '' : 'none';
   }
   async function loadFile(k, file){
-    ensureCtx();
-    await stopAll();
+    ensureCtx(); await stopAll();
     $('name'+k).innerHTML = 'Raita '+k+' <small>– ladataan…</small>';
     try{
       const ab = await file.arrayBuffer();
       const buf = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
-      setTrack(k, buf, file.name, true);
-      pos = 0; draw();
+      const prevO = {...O};
+      setTrack(k, buf, file.name);
+      if (T[k].prev) T[k].prev.O = prevO;
+      if (k !== 'A') O[k] = 0;
+      renorm(); pos = 0; refreshUI();
     } catch(e){
-      $('name'+k).innerHTML = 'Raita '+k+' <small>– tiedostoa ei voitu lukea</small>';
+      renderName(k);
+      $('status').textContent = 'Tiedostoa ei voitu lukea.';
       console.error(e);
     }
   }
@@ -347,9 +382,8 @@
   function startSources(from){
     stopSources();
     const s = starts(), now = ctx.currentTime + 0.03;
-    for (const k of ['A','B']){
-      const t = T[k]; if (!t.buf) continue;
-      const local = from - s[k];
+    for (const k of loaded()){
+      const t = T[k], local = from - s[k];
       if (local >= t.buf.duration) continue;
       const src = ctx.createBufferSource(); src.buffer = t.buf; src.connect(t.gain);
       if (local >= 0) src.start(now, local); else src.start(now - local, 0);
@@ -361,28 +395,22 @@
     startScheduler(zero, Math.ceil((now - zero)/spb() - 1e-6));
   }
   function stopSources(){
-    for (const k of ['A','B']){ const t=T[k]; if (t.src){ try{t.src.stop();}catch(e){} t.src.disconnect(); t.src=null; } }
+    for (const k of KEYS){ const t=T[k]; if (t.src){ try{t.src.stop();}catch(e){} t.src.disconnect(); t.src=null; } }
   }
   function curPos(){ return mode === 'play' ? playStartPos + Math.max(0, ctx.currentTime - playStartCtx) : pos; }
 
   async function play(){
-    await resumeCtx();
-    await stopAll();
+    await resumeCtx(); await stopAll();
     if (pos >= total() - 0.01) pos = 0;
-    mode = 'play';
-    startSources(pos);
+    mode = 'play'; startSources(pos);
     refreshUI(); loopFrame();
   }
-  function stopPlay(){
-    pos = curPos(); stopSources(); stopScheduler(); stopClicks();
-    mode = 'idle'; refreshUI();
-  }
+  function stopPlay(){ pos = curPos(); stopSources(); stopScheduler(); stopClicks(); mode = 'idle'; refreshUI(); }
   function seek(t){
     t = Math.max(0, Math.min(total(), t));
     if (mode === 'play') startSources(t); else { pos = t; draw(); }
   }
 
-  // ---------- metronome only ----------
   async function startMetro(){
     await resumeCtx(); await stopAll();
     mode = 'metro'; startScheduler(ctx.currentTime + 0.08, 0);
@@ -390,7 +418,9 @@
   }
   function stopMetro(){ stopScheduler(); stopClicks(); mode = 'idle'; refreshUI(); }
 
+  function stopTrimPreview(){ if (trimSrc){ try { trimSrc.stop(); } catch(e) {} trimSrc.disconnect(); trimSrc = null; $('trimPlay').textContent = '▶ Kuuntele'; } }
   async function stopAll(){
+    stopTrimPreview();
     if (mode === 'play') stopPlay();
     else if (mode === 'metro') stopMetro();
     else if (mode === 'rec') await finishRecording();
@@ -448,13 +478,11 @@
         };
       } catch(e){ console.warn('AudioWorklet ei käytettävissä, käytetään varatapaa', e); captureReady = null; }
     }
-    // fallback
     const bs = 2048;
     const proc = ctx.createScriptProcessor(bs, 1, 1);
     proc.onaudioprocess = e => {
       const d = new Float32Array(e.inputBuffer.getChannelData(0));
-      const f0 = Math.round(e.playbackTime * ctx.sampleRate) - 2*bs;
-      onChunk(f0, d);
+      onChunk(Math.round(e.playbackTime * ctx.sampleRate) - 2*bs, d);
     };
     source.connect(proc); proc.connect(sink);
     return {
@@ -476,8 +504,7 @@
   }
 
   async function startRecording(k){
-    await resumeCtx();
-    await stopAll();
+    await resumeCtx(); await stopAll(); closeTrim();
     setSession('play-and-record');
     let stream;
     try {
@@ -490,17 +517,20 @@
     await resumeCtx();
     const source = ctx.createMediaStreamSource(stream);
     const cap = await makeCapture(source);
-    const other = k === 'A' ? 'B' : 'A';
+    // others play from the global start; the new take will start at global 0
+    const others = loaded().filter(j => j !== k);
+    const st = startsFor(others);
+    const anc = (T.A.buf && k !== 'A') ? st.A : 0;
     const lead = S.countIn ? S.beats * spb() : 0;
-    const Z = ctx.currentTime + 0.25 + lead;
-    let otherSrc = null;
-    if (T[other].buf){
-      otherSrc = ctx.createBufferSource(); otherSrc.buffer = T[other].buf; otherSrc.connect(T[other].gain);
-      otherSrc.start(Z);
+    const Z = ctx.currentTime + 0.25 + Math.max(0, lead - anc);
+    const srcs = [];
+    for (const j of others){
+      const s = ctx.createBufferSource(); s.buffer = T[j].buf; s.connect(T[j].gain);
+      s.start(Z + st[j]); srcs.push(s);
     }
     mode = 'rec';
-    rec = { k, other, Z, stream, cap, otherSrc };
-    startScheduler(Z, S.countIn ? -S.beats : 0);
+    rec = { k, others, Z, anchor:anc, stream, cap, srcs };
+    startScheduler(Z + anc, S.countIn ? -S.beats : 0);
     $('recbar').classList.add('show');
     refreshUI(); loopFrame();
   }
@@ -509,7 +539,7 @@
     if (!rec) return;
     const r = rec; rec = null;
     stopScheduler(); stopClicks();
-    if (r.otherSrc){ try { r.otherSrc.stop(); } catch(e) {} r.otherSrc.disconnect(); }
+    for (const s of r.srcs){ try { s.stop(); } catch(e) {} s.disconnect(); }
     const chunks = await r.cap.stop();
     const lat = deviceLatency(r.stream);
     updateLatInfo(r.stream);
@@ -524,10 +554,8 @@
     let last = first; for (const c of chunks) last = Math.max(last, c.f0 + c.d.length);
     const all = new Float32Array(last - first);
     for (const c of chunks){ const o = c.f0 - first; if (o >= 0) all.set(c.d.subarray(0, Math.min(c.d.length, all.length - o)), o); }
-    // sample captured at context time Z + L corresponds to "beat zero" heard by the singer
     const L = lat.total + S.latExtra/1000;
-    const startFrame = Math.round((r.Z + L) * sr);
-    let drop = startFrame - first;
+    const drop = Math.round((r.Z + L) * sr) - first;
     let data;
     if (drop >= 0) data = all.subarray(Math.min(drop, all.length));
     else { data = new Float32Array(all.length - drop); data.set(all, -drop); }
@@ -535,28 +563,37 @@
     const buf = ctx.createBuffer(1, data.length, sr);
     buf.copyToChannel ? buf.copyToChannel(data, 0) : buf.getChannelData(0).set(data);
     const d = new Date(), p = x => String(x).padStart(2,'0');
-    setTrack(r.k, buf, 'Otto ' + p(d.getHours()) + ':' + p(d.getMinutes()), true);
-    setOffset(0, false);
+    const prevO = {...O};
+    setTrack(r.k, buf, 'Otto ' + p(d.getHours()) + ':' + p(d.getMinutes()));
+    if (T[r.k].prev) T[r.k].prev.O = prevO;
+    // new take starts at the global start of the others
+    let m = Infinity; for (const j of r.others) m = Math.min(m, O[j]);
+    O[r.k] = isFinite(m) ? m : 0;
+    renorm();
     pos = 0;
-    $('status').textContent = T[r.other].buf
-      ? 'Uusi otto kohdistettu raidan ' + r.other + ' kanssa. Hienosäädä tarvittaessa.'
-      : '';
+    $('status').textContent = r.others.length ? 'Uusi otto kohdistettu muiden raitojen kanssa. Hienosäädä tarvittaessa.' : '';
     refreshUI();
   }
 
-  // ---------- drawing ----------
+  // ---------- main waveform ----------
   const cv = $('wave');
+  const laneKeys = () => KEYS.slice(0, visible);
   function draw(){
-    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+    const lanes = laneKeys(), laneH = 52;
+    cv.style.height = (lanes.length * laneH) + 'px';
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = lanes.length * laneH;
     if (cv.width !== w*dpr || cv.height !== h*dpr){ cv.width = w*dpr; cv.height = h*dpr; }
     const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
     const cs = getComputedStyle(document.documentElement);
     const tot = total(), s = starts();
     if (tot > 0){
-      for (const [k,y0] of [['A',0],['B',h/2]]){
-        const t = T[k]; if (!t.peaks) continue;
-        g.fillStyle = cs.getPropertyValue(t.color).trim();
-        const mid = y0 + h/4, amp = h/4 - 6;
+      lanes.forEach((k, li) => {
+        const t = T[k], y0 = li*laneH;
+        if (li > 0){ g.fillStyle = cs.getPropertyValue('--line').trim(); g.fillRect(0, y0, w, 1); }
+        if (!t.peaks) return;
+        g.fillStyle = cs.getPropertyValue('--' + k.toLowerCase()).trim();
+        if (!audible(k)) g.globalAlpha = 0.3;
+        const mid = y0 + laneH/2, amp = laneH/2 - 5;
         for (let x=0;x<w;x++){
           const t0 = x/w*tot - s[k], t1 = (x+1)/w*tot - s[k];
           if (t1 < 0 || t0 > t.buf.duration) continue;
@@ -564,13 +601,13 @@
           let m = 0; for (let i=i0;i<i1;i++) if (t.peaks[i]>m) m = t.peaks[i];
           const hh = Math.max(1, m*amp); g.fillRect(x, mid-hh, 1, hh*2);
         }
-      }
-      g.fillStyle = cs.getPropertyValue('--line').trim(); g.fillRect(0, h/2, w, 1);
+        g.globalAlpha = 1;
+      });
       const px = curPos()/tot*w;
       g.fillStyle = cs.getPropertyValue('--ink').trim(); g.fillRect(Math.round(px)-1, 0, 2, h);
     } else {
       g.fillStyle = cs.getPropertyValue('--mute').trim(); g.font = '14px system-ui'; g.textAlign='center';
-      g.fillText('Nauhoita tai lataa raidat yllä', w/2, h/2+5);
+      g.fillText('Nauhoita tai lataa raitoja yllä', w/2, h/2+5);
     }
     $('time').textContent = fmt(curPos()) + ' / ' + fmt(tot);
   }
@@ -592,8 +629,8 @@
     }
     if (mode === 'rec' && rec){
       const t = ctx.currentTime - rec.Z;
-      $('recText').textContent = t < 0
-        ? '● Esilasku… ' + (S.beats + k + 1 > 0 ? (mod(k,S.beats)+1) : '')
+      $('recText').textContent = (ctx.currentTime < gridZero)
+        ? '● Esilasku… ' + (k >= -S.beats ? (mod(k,S.beats)+1) : '')
         : '● Nauhoitetaan raitaa ' + rec.k + '  ' + fmt(t);
       $('meter').style.width = Math.min(100, rec.cap.level()*110) + '%';
     }
@@ -622,23 +659,37 @@
   cv.addEventListener('pointerdown', e => { dragging = true; cv.setPointerCapture(e.pointerId); seekFromEvent(e); });
   cv.addEventListener('pointermove', e => { if (dragging && mode !== 'play') seekFromEvent(e); });
   cv.addEventListener('pointerup', e => { if (dragging && mode === 'play') seekFromEvent(e); dragging = false; });
-  window.addEventListener('resize', draw);
+  window.addEventListener('resize', () => { draw(); if (trim) drawTrim(); });
 
-  // ---------- offset ----------
-  function setOffset(ms, restart=true){
-    ms = Math.round(ms);
-    offsetMs = ms;
+  // ---------- offsets ----------
+  function buildOffSel(){
+    const sel = $('offSel'), opts = KEYS.slice(1, visible);
+    if (!opts.includes(offSel)) offSel = opts[0] || 'B';
+    sel.innerHTML = opts.map(k => `<option value="${k}"${k===offSel?' selected':''}>${k}</option>`).join('');
+  }
+  function showOffset(){
+    const ms = Math.round(O[offSel] - (T.A.buf ? O.A : 0));
     const sl = $('off');
     if (Math.abs(ms) > parseInt(sl.max)) { sl.max = Math.ceil(Math.abs(ms)/1000)*1000; sl.min = -sl.max; }
     sl.value = ms;
     $('offv').textContent = (ms>0?'+':'') + ms + ' ms';
-    if (mode === 'play' && restart) startSources(Math.min(curPos(), total()));
-    else pos = Math.min(pos, total());
-    draw();
   }
-  $('off').addEventListener('input', e => setOffset(parseFloat(e.target.value)));
-  document.querySelectorAll('.nudges button').forEach(b => b.addEventListener('click', () => setOffset(offsetMs + parseInt(b.dataset.n))));
-  $('zero').addEventListener('click', () => { setOffset(0); $('status').textContent=''; });
+  function setOffset(k, ms){
+    const before = starts();
+    const playingPos = curPos();
+    // keep the time position of track A stable while moving others
+    O[k] = Math.round(ms); renorm();
+    const after = starts();
+    const refK = T.A.buf ? 'A' : loaded()[0];
+    const shift = refK ? after[refK] - before[refK] : 0;
+    if (mode === 'play') startSources(Math.max(0, Math.min(playingPos + shift, total())));
+    else pos = Math.max(0, Math.min(pos + shift, total()));
+    showOffset(); draw();
+  }
+  $('offSel').addEventListener('change', e => { offSel = e.target.value; showOffset(); });
+  $('off').addEventListener('input', e => setOffset(offSel, parseFloat(e.target.value)));
+  document.querySelectorAll('#offNudges button').forEach(b => b.addEventListener('click', () => setOffset(offSel, O[offSel] + parseInt(b.dataset.n))));
+  $('zero').addEventListener('click', () => { setOffset(offSel, 0); $('status').textContent=''; });
 
   // ---------- auto-align ----------
   function onsetEnv(mono, sr, hop, maxSec){
@@ -660,33 +711,134 @@
     return out;
   }
   async function autoAlign(){
-    if (!T.A.buf || !T.B.buf) return;
+    const k = offSel;
+    if (!T.A.buf || !T[k].buf) return;
     $('status').textContent = 'Lasketaan…';
     await new Promise(r => setTimeout(r, 30));
     const sr = 16000, maxSec = 90;
-    const a = resampleTo(T.A.mono, T.A.buf.sampleRate, sr), b = resampleTo(T.B.mono, T.B.buf.sampleRate, sr);
+    const a = resampleTo(T.A.mono, T.A.buf.sampleRate, sr), b = resampleTo(T[k].mono, T[k].buf.sampleRate, sr);
     const eA = onsetEnv(a, sr, 160, maxSec), eB = onsetEnv(b, sr, 160, maxSec);
     const maxLag = Math.min(1000, Math.max(eA.length, eB.length));
     const scores = new Float32Array(2*maxLag+1); let best=-Infinity, bk=0;
-    for (let k=-maxLag;k<=maxLag;k++){
-      let s=0; const i0=Math.max(0,k), i1=Math.min(eA.length, eB.length+k);
-      for (let i=i0;i<i1;i++) s += eA[i]*eB[i-k];
-      scores[k+maxLag]=s; if (s>best){best=s;bk=k;}
+    for (let q=-maxLag;q<=maxLag;q++){
+      let s=0; const i0=Math.max(0,q), i1=Math.min(eA.length, eB.length+q);
+      for (let i=i0;i<i1;i++) s += eA[i]*eB[i-q];
+      scores[q+maxLag]=s; if (s>best){best=s;bk=q;}
     }
     let second=-Infinity;
     for (let i=0;i<scores.length;i++) if (Math.abs(i-maxLag-bk) > 10 && scores[i]>second) second=scores[i];
     const fA = onsetEnv(a, sr, 16, maxSec), fB = onsetEnv(b, sr, 16, maxSec);
     const center = bk*10; let fb=-Infinity, fk=center;
-    for (let k=center-25;k<=center+25;k++){
-      let s=0; const i0=Math.max(0,k), i1=Math.min(fA.length, fB.length+k);
-      for (let i=i0;i<i1;i++) s += fA[i]*fB[i-k];
-      if (s>fb){fb=s;fk=k;}
+    for (let q=center-25;q<=center+25;q++){
+      let s=0; const i0=Math.max(0,q), i1=Math.min(fA.length, fB.length+q);
+      for (let i=i0;i<i1;i++) s += fA[i]*fB[i-q];
+      if (s>fb){fb=s;fk=q;}
     }
-    setOffset(fk);
+    setOffset(k, O.A + fk);
     const ratio = second > 0 ? best/second : 9;
-    $('status').textContent = 'Kohdistettu: ' + (fk>0?'+':'') + fk + ' ms' + (ratio > 1.3 ? '. Tarkista korvakuulolla.' : ' – tulos on epävarma, tarkista korvakuulolla.');
+    $('status').textContent = 'Raita ' + k + ' kohdistettu: ' + (fk>0?'+':'') + fk + ' ms' + (ratio > 1.3 ? '. Tarkista korvakuulolla.' : ' – tulos on epävarma, tarkista korvakuulolla.');
   }
   $('auto').addEventListener('click', autoAlign);
+
+  // ---------- trim ----------
+  const tcv = $('trimWave');
+  function openTrim(k){
+    if (!T[k].buf) return;
+    stopAll();
+    const d = T[k].buf.duration;
+    trim = { k, s:0, e:d, d };
+    $('trimCard').style.setProperty('--tc', 'var(--' + k.toLowerCase() + ')');
+    $('trimTitle').textContent = 'Trimmaa raita ' + k;
+    for (const id of ['trimS','trimE']){ $(id).max = d; $(id).step = d > 60 ? 0.05 : 0.01; }
+    $('trimCard').classList.add('show');
+    updateTrim();
+    $('trimCard').scrollIntoView({behavior:'smooth', block:'center'});
+  }
+  function closeTrim(){ stopTrimPreview(); trim = null; $('trimCard').classList.remove('show'); }
+  function updateTrim(){
+    if (!trim) return;
+    trim.s = Math.max(0, Math.min(trim.s, trim.d - 0.1));
+    trim.e = Math.max(trim.s + 0.1, Math.min(trim.e, trim.d));
+    $('trimS').value = trim.s; $('trimE').value = trim.e;
+    $('trimSv').textContent = 'Alku ' + fmt(trim.s, 2);
+    $('trimEv').textContent = 'Loppu ' + fmt(trim.e, 2);
+    $('trimLen').textContent = 'Pituus ' + fmt(trim.e - trim.s, 1);
+    drawTrim();
+  }
+  function drawTrim(){
+    if (!trim) return;
+    const t = T[trim.k], dpr = window.devicePixelRatio || 1, w = tcv.clientWidth, h = tcv.clientHeight;
+    if (tcv.width !== w*dpr || tcv.height !== h*dpr){ tcv.width = w*dpr; tcv.height = h*dpr; }
+    const g = tcv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+    const cs = getComputedStyle(document.documentElement);
+    const col = cs.getPropertyValue('--' + trim.k.toLowerCase()).trim();
+    const n = t.peaks.length, mid = h/2, amp = h/2 - 4;
+    const xs = trim.s/trim.d*w, xe = trim.e/trim.d*w;
+    for (let x=0;x<w;x++){
+      const i0 = Math.floor(x/w*n), i1 = Math.max(i0+1, Math.floor((x+1)/w*n));
+      let m = 0; for (let i=i0;i<i1&&i<n;i++) if (t.peaks[i]>m) m = t.peaks[i];
+      g.fillStyle = col; g.globalAlpha = (x < xs || x > xe) ? 0.2 : 1;
+      const hh = Math.max(1, m*amp); g.fillRect(x, mid-hh, 1, hh*2);
+    }
+    g.globalAlpha = 1;
+    g.fillStyle = cs.getPropertyValue('--ink').trim();
+    g.fillRect(Math.round(xs)-1, 0, 2, h); g.fillRect(Math.round(xe)-1, 0, 2, h);
+  }
+  tcv.addEventListener('pointerdown', e => {
+    if (!trim) return;
+    const r = tcv.getBoundingClientRect(), t = (e.clientX - r.left)/r.width*trim.d;
+    if (Math.abs(t - trim.s) <= Math.abs(t - trim.e)) trim.s = t; else trim.e = t;
+    stopTrimPreview(); updateTrim();
+  });
+  $('trimS').addEventListener('input', e => { trim.s = parseFloat(e.target.value); stopTrimPreview(); updateTrim(); });
+  $('trimE').addEventListener('input', e => { trim.e = parseFloat(e.target.value); stopTrimPreview(); updateTrim(); });
+  document.querySelectorAll('#trimNudges button').forEach(b => b.addEventListener('click', () => {
+    trim[b.dataset.w] += parseFloat(b.dataset.n); stopTrimPreview(); updateTrim();
+  }));
+  function detectSilence(k){
+    const t = T[k], sr = t.buf.sampleRate, mono = t.mono, hop = Math.round(sr*0.01);
+    const n = Math.floor(mono.length/hop), db = new Float32Array(n);
+    for (let f=0;f<n;f++){ let s=0; for (let i=f*hop;i<(f+1)*hop;i++) s += mono[i]*mono[i]; db[f] = 10*Math.log10(1e-12 + s/hop); }
+    const sorted = Array.from(db).sort((a,b)=>a-b);
+    const floor = sorted[Math.floor(n*0.1)], peak = sorted[Math.floor(n*0.995)];
+    const thr = floor + Math.max(10, (peak - floor)*0.3);
+    let a = 0; while (a < n && db[a] < thr) a++;
+    let z = n-1; while (z > a && db[z] < thr) z--;
+    if (a >= n) return null;
+    return { s: Math.max(0, a*0.01 - 0.15), e: Math.min(t.buf.duration, (z+1)*0.01 + 0.3) };
+  }
+  $('trimAuto').addEventListener('click', () => {
+    const r = detectSilence(trim.k);
+    if (!r){ $('trimLen').textContent = 'Ääntä ei löytynyt'; return; }
+    trim.s = r.s; trim.e = r.e; stopTrimPreview(); updateTrim();
+  });
+  $('trimPlay').addEventListener('click', async () => {
+    if (trimSrc){ stopTrimPreview(); return; }
+    await resumeCtx(); await stopAll();
+    const t = T[trim.k];
+    trimSrc = ctx.createBufferSource(); trimSrc.buffer = t.buf; trimSrc.connect(t.gain);
+    t.gain.gain.setTargetAtTime(parseFloat($('vol'+trim.k).value), ctx.currentTime, 0.01);
+    trimSrc.start(ctx.currentTime + 0.03, trim.s, trim.e - trim.s);
+    trimSrc.onended = () => { if (trimSrc){ trimSrc = null; $('trimPlay').textContent = '▶ Kuuntele'; applyAll(); } };
+    $('trimPlay').textContent = '■ Pysäytä';
+  });
+  $('trimCancel').addEventListener('click', () => { closeTrim(); applyAll(); });
+  $('trimApply').addEventListener('click', () => {
+    if (!trim) return;
+    stopTrimPreview(); applyAll();
+    const k = trim.k, t = T[k], b = t.buf, sr = b.sampleRate;
+    const i0 = Math.round(trim.s*sr), i1 = Math.min(b.length, Math.round(trim.e*sr));
+    if (i0 === 0 && i1 === b.length){ closeTrim(); return; }
+    const nb = ctx.createBuffer(b.numberOfChannels, i1 - i0, sr);
+    for (let c=0;c<b.numberOfChannels;c++) nb.getChannelData(c).set(b.getChannelData(c).subarray(i0, i1));
+    const prev = snapshot(k);
+    setTrack(k, nb, t.name.replace(/ \(trimmattu\)$/, '') + ' (trimmattu)');
+    t.prev = prev;
+    // keep alignment: content that was at trim.s now starts the buffer
+    O[k] += Math.round(trim.s*1000); renorm();
+    closeTrim(); pos = 0;
+    refreshUI();
+  });
 
   // ---------- export ----------
   function encodeWav(channels, sr, normalize){
@@ -756,10 +908,9 @@
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const oc = new OAC(2, Math.max(1, Math.ceil(tot*sr)), sr);
     const s = starts();
-    for (const k of ['A','B']){
-      const t = T[k]; if (!t.buf) continue;
-      if (t.mute || (anySolo() && !t.solo)) continue;
-      const src = oc.createBufferSource(); src.buffer = t.buf;
+    for (const k of loaded()){
+      if (!audible(k)) continue;
+      const src = oc.createBufferSource(); src.buffer = T[k].buf;
       const g = oc.createGain(); g.gain.value = parseFloat($('vol'+k).value);
       const p = oc.createStereoPanner(); p.pan.value = parseFloat($('pan'+k).value);
       src.connect(g); g.connect(p); p.connect(oc.destination);
@@ -770,10 +921,19 @@
   $('export').addEventListener('click', async () => {
     $('export').disabled = true;
     try { const mix = await renderMix(); await saveAudio([mix.getChannelData(0), mix.getChannelData(1)], mix.sampleRate, true, 'harmonia-miksaus-' + stamp()); }
-    catch(e){ console.error(e); $('status').textContent = 'Miksauksen tallennus epäonnistui.'; }
+    catch(e){ console.error(e); $('saveStatus').textContent = 'Miksauksen tallennus epäonnistui.'; }
     refreshUI();
   });
-  for (const k of ['A','B']){
+
+  // ---------- per-track controls ----------
+  for (const k of KEYS){
+    $('file'+k).addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(k, f); e.target.value=''; });
+    $('vol'+k).addEventListener('input', e => { $('vol'+k+'v').textContent = Math.round(e.target.value*100)+' %'; if (ctx) applyTrack(k); });
+    $('pan'+k).addEventListener('input', e => { $('pan'+k+'v').textContent = panLabel(parseFloat(e.target.value)); if (ctx) applyTrack(k); });
+    $('mute'+k).addEventListener('click', () => { T[k].mute=!T[k].mute; $('mute'+k).classList.toggle('on',T[k].mute); applyAll(); draw(); });
+    $('solo'+k).addEventListener('click', () => { T[k].solo=!T[k].solo; $('solo'+k).classList.toggle('on',T[k].solo); applyAll(); draw(); });
+    $('rec'+k).addEventListener('click', () => { if (mode === 'rec') finishRecording(); else startRecording(k); });
+    $('trim'+k).addEventListener('click', () => openTrim(k));
     $('save'+k).addEventListener('click', async () => {
       const b = T[k].buf; if (!b) return;
       const ch = []; for (let c=0;c<b.numberOfChannels;c++) ch.push(b.getChannelData(c));
@@ -783,25 +943,20 @@
     });
     $('undo'+k).addEventListener('click', async () => {
       const p = T[k].prev; if (!p) return;
-      await stopAll();
+      await stopAll(); if (trim && trim.k === k) closeTrim();
       const t = T[k]; t.buf = p.buf; t.mono = p.mono; t.peaks = p.peaks; t.name = p.name; t.prev = null;
-      renderName(k); refreshUI();
+      Object.assign(O, p.O);
+      renderName(k); pos = 0; refreshUI();
+    });
+    $('clear'+k).addEventListener('click', async () => {
+      await stopAll(); if (trim && trim.k === k) closeTrim();
+      const t = T[k]; t.prev = snapshot(k);
+      t.buf = null; t.mono = null; t.peaks = null; t.name = '';
+      renderName(k); pos = 0; refreshUI();
     });
   }
+  $('addTrack').addEventListener('click', () => { if (visible < KEYS.length){ visible++; refreshUI(); $('card'+KEYS[visible-1]).scrollIntoView({behavior:'smooth', block:'center'}); } });
 
-  // ---------- controls ----------
-  for (const k of ['A','B']){
-    $('file'+k).addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFile(k, f); e.target.value=''; });
-    $('vol'+k).addEventListener('input', e => { $('vol'+k+'v').textContent = Math.round(e.target.value*100)+' %'; if (ctx) applyTrack(k); });
-    $('pan'+k).addEventListener('input', e => {
-      const v = Math.round(parseFloat(e.target.value)*100);
-      $('pan'+k+'v').textContent = v===0 ? 'Keski' : (v<0 ? 'V '+(-v) : 'O '+v);
-      if (ctx) applyTrack(k);
-    });
-    $('mute'+k).addEventListener('click', () => { T[k].mute=!T[k].mute; $('mute'+k).classList.toggle('on',T[k].mute); if(ctx){applyTrack('A');applyTrack('B');} });
-    $('solo'+k).addEventListener('click', () => { T[k].solo=!T[k].solo; $('solo'+k).classList.toggle('on',T[k].solo); if(ctx){applyTrack('A');applyTrack('B');} });
-    $('rec'+k).addEventListener('click', () => { if (mode === 'rec') finishRecording(); else startRecording(k); });
-  }
   $('recStop').addEventListener('click', () => finishRecording());
   $('play').addEventListener('click', () => mode === 'play' ? stopPlay() : play());
   $('rew').addEventListener('click', () => seek(0));
@@ -826,9 +981,9 @@
     }
   });
   $('sig').addEventListener('change', e => { S.beats = parseInt(e.target.value); saveS(); buildBeats(); });
-  for (const [id,key] of [['clickOn','clickOn'],['countIn','countIn'],['clickPlay','clickPlay']]){
-    $(id).checked = S[key];
-    $(id).addEventListener('change', e => { S[key] = e.target.checked; saveS(); });
+  for (const key of ['clickOn','countIn','clickPlay']){
+    $(key).checked = S[key];
+    $(key).addEventListener('change', e => { S[key] = e.target.checked; saveS(); });
   }
   $('fmt').value = S.fmt;
   $('fmt').addEventListener('change', e => { S.fmt = e.target.value; saveS(); });
@@ -836,29 +991,35 @@
   $('latExtra').addEventListener('change', e => { S.latExtra = parseFloat(e.target.value) || 0; saveS(); updateLatInfo(); });
 
   function refreshUI(){
-    const any = T.A.buf || T.B.buf, recording = mode === 'rec';
+    const any = loaded().length > 0, recording = mode === 'rec';
     $('play').disabled = !any || recording; $('rew').disabled = !any || recording;
     $('play').textContent = mode === 'play' ? '❚❚ Tauko' : '▶ Soita';
-    $('auto').disabled = !(T.A.buf && T.B.buf) || recording;
     $('export').disabled = !any || recording;
     $('metroBtn').textContent = mode === 'metro' ? '■ Pysäytä' : '▶ Metronomi';
     $('metroBtn').disabled = recording;
-    for (const k of ['A','B']){
+    const micOk = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    KEYS.forEach((k, i) => {
+      $('card'+k).style.display = i < visible ? '' : 'none';
       const r = $('rec'+k), isMe = recording && rec && rec.k === k;
-      r.textContent = isMe ? '■ Lopeta' : (T[k].buf ? '● Nauhoita uusi' : '● Nauhoita');
+      r.textContent = isMe ? '■ Lopeta' : (T[k].buf ? '● Uusi otto' : '● Nauhoita');
       r.classList.toggle('active', isMe);
-      r.disabled = recording && !isMe;
+      r.disabled = !micOk || (recording && !isMe);
+      if (!micOk) r.title = 'Mikrofoni ei ole käytettävissä tällä sivulla (vaatii https-osoitteen).';
       $('save'+k).disabled = !T[k].buf || recording;
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      for (const k of ['A','B']) { $('rec'+k).disabled = true; $('rec'+k).title = 'Mikrofoni ei ole käytettävissä tällä sivulla (vaatii https-osoitteen).'; }
-    }
+      $('trim'+k).disabled = !T[k].buf || recording;
+      $('undo'+k).style.display = T[k].prev ? '' : 'none';
+      $('clear'+k).style.display = T[k].buf ? '' : 'none';
+      renderName(k);
+    });
+    $('addTrack').style.display = visible < KEYS.length ? '' : 'none';
+    buildOffSel(); showOffset();
+    $('auto').disabled = !(T.A.buf && T[offSel] && T[offSel].buf) || recording;
     draw();
   }
 
   $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('sig').value = String(S.beats);
   buildBeats(); refreshUI();
-  window.__h = { T, S, get offset(){ return offsetMs; }, get mode(){ return mode; }, renderMix };
+  window.__h = { T, S, O, get mode(){ return mode; }, get visible(){ return visible; }, starts, total, renderMix, detectSilence };
 })();
 </script>
 </body>
