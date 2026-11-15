@@ -96,6 +96,10 @@
     <button id="recStop">■ Lopeta</button>
   </div>
 
+  <div id="micPill" class="card" style="display:none;padding:8px 12px;display:none;align-items:center;gap:10px;font-size:13px;color:var(--mute)">
+    <span style="flex:1">🎙 Mikrofoni on auki seuraavaa ottoa varten.</span><button class="small" id="micClose">Sulje mikrofoni</button>
+  </div>
+
   <section class="card" id="metroCard">
     <h2>Metronomi</h2>
     <div class="metro-top">
@@ -192,7 +196,7 @@
   <details class="card">
     <summary>Vinkit</summary>
     <p><b>Nauhoita kuulokkeilla.</b> Muuten muut raidat ja klikki vuotavat mikrofoniin.</p>
-    <p>Nauhoittaessa kaikki muut raidat soivat (mykistykset ja soolot huomioiden).</p>
+    <p>Nauhoittaessa kaikki muut raidat soivat (mykistykset ja soolot huomioiden). Mikrofoni jää auki ottojen välillä, jotta toisto pysyy vakaana; sulje se napista tai siirtymällä pois sivulta.</p>
     <p>Sanelin-appin äänityksen saat ladattua: ⋯ → <b>Tallenna Tiedostoihin</b> → ”Lataa”.</p>
     <p>Jos ääntä ei kuulu, tarkista puhelimen äänetön-kytkin.</p>
     <p>Kaikki ääni pysyy omalla laitteellasi – mitään ei lähetetä minnekään. Raidat katoavat, kun suljet sivun, joten tallenna ne mitä haluat säilyttää.</p>
@@ -243,14 +247,20 @@
       <div class="row"><span class="lbl"></span><button id="mute${k}">Mykistä</button><button id="solo${k}">Soolo</button></div>
     </section>`).join('');
 
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let micStream = null, ctxBeforeMic = false;
+  const micLive = () => micStream && micStream.getAudioTracks().some(t => t.readyState === 'live');
+
   function ensureCtx(){
-    if (ctx) return ctx;
+    if (ctx && ctx.state !== 'closed') return ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
     ctx = new AC({latencyHint:'interactive'});
+    captureReady = null;
     master = ctx.createGain(); master.connect(ctx.destination);
     clickBus = ctx.createGain(); clickBus.gain.value = 0.8; clickBus.connect(ctx.destination);
     for (const k of KEYS){
       const t = T[k];
+      t.src = null;
       t.gain = ctx.createGain();
       t.pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
       if (t.pan){ t.gain.connect(t.pan); t.pan.connect(master); } else t.gain.connect(master);
@@ -259,7 +269,29 @@
     updateLatInfo();
     return ctx;
   }
-  async function resumeCtx(){ ensureCtx(); if (ctx.state !== 'running') { try { await ctx.resume(); } catch(e) {} } }
+  // iOS can leave the context stuck when the audio session changes; build a fresh one
+  async function rebuildCtx(){
+    const old = ctx; ctx = null;
+    if (old){ try { await old.close(); } catch(e) {} }
+    ensureCtx();
+  }
+  async function resumeCtx(){
+    ensureCtx();
+    if (ctx.state !== 'running'){ try { await Promise.race([ctx.resume(), sleep(400)]); } catch(e) {} }
+    if (ctx.state !== 'running'){
+      await rebuildCtx();
+      try { await Promise.race([ctx.resume(), sleep(400)]); } catch(e) {}
+    }
+    return ctx.state === 'running';
+  }
+  function releaseMic(){
+    if (mode === 'rec') return;
+    if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    setSession('playback');
+    updateMicPill();
+  }
+  function updateMicPill(){ $('micPill').style.display = (micLive() && mode !== 'rec') ? 'flex' : 'none'; }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseMic(); });
 
   const loaded = () => KEYS.filter(k => T[k].buf);
   function anySolo(){ return KEYS.some(k => T[k].solo); }
@@ -504,17 +536,26 @@
   }
 
   async function startRecording(k){
-    await resumeCtx(); await stopAll(); closeTrim();
-    setSession('play-and-record');
-    let stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
-    } catch(e){
-      setSession('playback');
-      $('status').textContent = 'Mikrofonia ei saatu käyttöön. Salli mikrofoni selaimen asetuksista.';
-      console.error(e); return;
+    await stopAll(); closeTrim();
+    ensureCtx();
+    if (!micLive()){
+      setSession('play-and-record');
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
+      } catch(e){
+        micStream = null; setSession('playback');
+        $('status').textContent = 'Mikrofonia ei saatu käyttöön. Salli mikrofoni selaimen asetuksista.';
+        console.error(e); return;
+      }
+      // the audio session just switched to recording mode: start from a fresh context
+      await rebuildCtx();
     }
-    await resumeCtx();
+    const ok = await resumeCtx();
+    if (!ok){
+      $('status').textContent = 'Äänentoisto ei käynnistynyt. Paina Soita kerran ja yritä nauhoitusta uudelleen.';
+      return;
+    }
+    const stream = micStream;
     const source = ctx.createMediaStreamSource(stream);
     const cap = await makeCapture(source);
     // others play from the global start; the new take will start at global 0
@@ -531,7 +572,8 @@
     mode = 'rec';
     rec = { k, others, Z, anchor:anc, stream, cap, srcs };
     startScheduler(Z + anc, S.countIn ? -S.beats : 0);
-    $('recbar').classList.add('show');
+    rec.bg = others.filter(audible).join(', ');
+    $('recbar').classList.add('show'); updateMicPill();
     refreshUI(); loopFrame();
   }
 
@@ -543,9 +585,8 @@
     const chunks = await r.cap.stop();
     const lat = deviceLatency(r.stream);
     updateLatInfo(r.stream);
-    r.stream.getTracks().forEach(t => t.stop());
-    setSession('playback');
     mode = 'idle';
+    updateMicPill();
     $('recbar').classList.remove('show');
 
     const sr = ctx.sampleRate;
@@ -631,7 +672,7 @@
       const t = ctx.currentTime - rec.Z;
       $('recText').textContent = (ctx.currentTime < gridZero)
         ? '● Esilasku… ' + (k >= -S.beats ? (mod(k,S.beats)+1) : '')
-        : '● Nauhoitetaan raitaa ' + rec.k + '  ' + fmt(t);
+        : '● Raita ' + rec.k + '  ' + fmt(t) + (rec.bg ? '  · taustalla ' + rec.bg : '');
       $('meter').style.width = Math.min(100, rec.cap.level()*110) + '%';
     }
   }
@@ -958,6 +999,7 @@
   $('addTrack').addEventListener('click', () => { if (visible < KEYS.length){ visible++; refreshUI(); $('card'+KEYS[visible-1]).scrollIntoView({behavior:'smooth', block:'center'}); } });
 
   $('recStop').addEventListener('click', () => finishRecording());
+  $('micClose').addEventListener('click', () => releaseMic());
   $('play').addEventListener('click', () => mode === 'play' ? stopPlay() : play());
   $('rew').addEventListener('click', () => seek(0));
   $('loop').addEventListener('click', () => { loop=!loop; $('loop').classList.toggle('on',loop); });
