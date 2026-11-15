@@ -98,7 +98,7 @@
   </div>
 
   <div id="micPill" class="card" style="display:none;padding:8px 12px;display:none;align-items:center;gap:10px;font-size:13px;color:var(--mute)">
-    <span style="flex:1">🎙 Mikrofoni on auki seuraavaa ottoa varten.</span><button class="small" id="micClose">Sulje mikrofoni</button>
+    <span style="flex:1" id="micPillText">🎙 Mikrofoni on auki seuraavaa ottoa varten.</span><button class="small" id="micClose">Sulje mikrofoni</button>
   </div>
 
   <section class="card" id="metroCard">
@@ -189,6 +189,8 @@
 
   <details class="card">
     <summary>Nauhoitusasetukset</summary>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0 4px;color:var(--ink)"><input type="checkbox" id="speakerMode" style="margin-top:3px"> <span><b>Kaiutintila</b> (kokeellinen)</span></label>
+    <p style="margin-top:0">Käyttää iPhonen kaiunpoistoa. Tällöin taustaraidan pitäisi kuulua kaiuttimesta eikä kuuloaukosta, ja tausta vuotaa ottoon vähemmän – mutta laulu kuulostaa hieman käsitellyltä. Kuulokkeilla pidä pois päältä. Kaiutintilassa tehdyt otot merkitään nimeen.</p>
     <div class="row"><span class="lbl" style="width:auto">Taustan voimakkuus nauhoittaessa</span><input type="range" id="recBg" min="0" max="1" step="0.05"><span class="val" id="recBgV">100 %</span></div>
     <p>Taustaraidat ja klikki soivat nauhoituksen aikana tällä voimakkuudella. Puhelimen kaiuttimella nauhoittaessa pienempi arvo vähentää taustan vuotamista uuteen ottoon. Kuulokkeilla voit pitää 100 %.</p>
     <p>Nauhoitettu raita siirretään automaattisesti laitteen ilmoittaman viiveen verran aikaisemmaksi. Jos uusi otto kuulostaa silti jäävän jälkeen (tai kiirehtivän), säädä lisäkorjausta. Positiivinen arvo siirtää uusia ottoja aikaisemmaksi.</p>
@@ -225,7 +227,7 @@
   let rec = null, captureReady = null;
   let trim = null, trimSrc = null;
 
-  const S = { recBg:1, fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
+  const S = { speakerMode:false, recBg:1, fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
   try { Object.assign(S, JSON.parse(localStorage.getItem('harmonia-settings') || '{}')); } catch(e) {}
   const saveS = () => { try { localStorage.setItem('harmonia-settings', JSON.stringify(S)); } catch(e) {} };
 
@@ -300,7 +302,10 @@
     setSession('auto'); setSession('playback');
     updateMicPill();
   }
-  function updateMicPill(){ $('micPill').style.display = (micLive() && mode !== 'rec') ? 'flex' : 'none'; }
+  function updateMicPill(){
+    $('micPill').style.display = (micLive() && mode !== 'rec') ? 'flex' : 'none';
+    if (micStream) $('micPillText').textContent = '🎙 Mikrofoni on auki seuraavaa ottoa varten' + (micStream._speaker ? ' (kaiutintila).' : '.');
+  }
   document.addEventListener('visibilitychange', () => {
     if (document.hidden){ releaseMic(); if (ctx) ctxDirty = true; }
   });
@@ -581,7 +586,8 @@
     if (!micLive()){
       setSession('auto');
       try {
-        micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
+        micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:!!S.speakerMode, noiseSuppression:false, autoGainControl:false, channelCount:1}});
+        micStream._speaker = !!S.speakerMode;
       } catch(e){
         micStream = null; setSession('playback');
         $('status').textContent = 'Mikrofonia ei saatu käyttöön. Salli mikrofoni selaimen asetuksista.';
@@ -598,6 +604,7 @@
       return;
     }
     const stream = micStream;
+    const speakerTake = !!micStream._speaker;
     const source = ctx.createMediaStreamSource(stream);
     const cap = await makeCapture(source);
     // others play from the global start; the new take will start at global 0
@@ -612,7 +619,7 @@
       s.start(Z + st[j]); srcs.push(s);
     }
     mode = 'rec';
-    rec = { k, others, Z, anchor:anc, stream, cap, srcs };
+    rec = { k, others, Z, anchor:anc, stream, cap, srcs, speaker:speakerTake };
     startScheduler(Z + anc, S.countIn ? -S.beats : 0);
     rec.bg = others.filter(audible).join(', ');
     applyRecBg();
@@ -655,7 +662,7 @@
     buf.copyToChannel ? buf.copyToChannel(data, 0) : buf.getChannelData(0).set(data);
     const d = new Date(), p = x => String(x).padStart(2,'0');
     const prevO = {...O};
-    setTrack(r.k, buf, 'Otto ' + p(d.getHours()) + ':' + p(d.getMinutes()));
+    setTrack(r.k, buf, 'Otto ' + p(d.getHours()) + ':' + p(d.getMinutes()) + (r.speaker ? ' (kaiutintila)' : ''));
     if (T[r.k].prev) T[r.k].prev.O = prevO;
     // new take starts at the global start of the others
     let m = Infinity; for (const j of r.others) m = Math.min(m, O[j]);
@@ -1080,7 +1087,12 @@
   }
   function setRecBg(v){
     S.recBg = v; saveS();
-    for (const id of ['recBg','recBgLive']) $(id).value = v;
+    $('speakerMode').checked = !!S.speakerMode;
+  $('speakerMode').addEventListener('change', e => {
+    S.speakerMode = e.target.checked; saveS();
+    if (mode !== 'rec') releaseMic();   // next take reopens the mic with the new setting
+  });
+  for (const id of ['recBg','recBgLive']) $(id).value = v;
     for (const id of ['recBgV','recBgLiveV']) $(id).textContent = Math.round(v*100) + ' %';
     if (mode === 'rec') applyRecBg();
   }
