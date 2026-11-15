@@ -97,6 +97,9 @@
     <button id="recStop">■ Lopeta</button>
   </div>
 
+  <div id="notice" class="card" style="display:none;padding:10px 12px;align-items:center;gap:10px;font-size:14px;position:sticky;top:0;z-index:4">
+    <span style="flex:1" id="noticeText"></span><button class="small" id="noticeUndo" style="display:none">Peru</button><button class="small" id="noticeClose">✕</button>
+  </div>
   <div id="micPill" class="card" style="display:none;padding:8px 12px;display:none;align-items:center;gap:10px;font-size:13px;color:var(--mute)">
     <span style="flex:1" id="micPillText">🎙 Mikrofoni on auki seuraavaa ottoa varten.</span><button class="small" id="micClose">Sulje mikrofoni</button>
   </div>
@@ -209,12 +212,14 @@
     <p>Jos ääntä ei kuulu, tarkista puhelimen äänetön-kytkin.</p>
     <p>Kaikki ääni pysyy omalla laitteellasi – mitään ei lähetetä minnekään. Raidat katoavat, kun suljet sivun, joten tallenna ne mitä haluat säilyttää.</p>
   </details>
+  <p class="hint" style="text-align:center" id="ver"></p>
 </main>
 
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   const mod = (a,n) => ((a % n) + n) % n;
+  const VERSION = '2026-11-15.4';
   const KEYS = ['A','B','C','D'];
   const PAN = {A:-0.6, B:0.6, C:-0.25, D:0.25};
   let ctx = null, master = null, clickBus = null;
@@ -671,13 +676,17 @@
     O[r.k] = isFinite(m) ? m : 0;
     renorm();
     pos = 0;
-    let msg = r.others.length ? 'Uusi otto kohdistettu muiden raitojen kanssa. Hienosäädä tarvittaessa.' : '';
+    $('status').textContent = '';
     if (r.others.length && S.autoAlignRec){
       const q = fineAlignTake(r.k, r.others);
-      if (q === null) msg = 'Uusi otto kohdistettu viiveen mukaan (tarkkaa kohtaa ei löytynyt automaattisesti). Hienosäädä tarvittaessa.';
-      else { O[r.k] += q; renorm(); msg = 'Uusi otto kohdistettu automaattisesti' + (q ? ' (korjaus ' + (q>0?'+':'') + q + ' ms)' : '') + '. Hienosäädä tarvittaessa.'; }
+      if (q === null) showNotice('Raita ' + r.k + ': automaattikohdistus ei löytänyt selvää kohtaa – otto on viivekorjauksen mukaisessa kohdassa. Kokeile ”Kohdista automaattisesti”.');
+      else {
+        const before = O[r.k];
+        O[r.k] += q; renorm();
+        offSel = r.k === 'A' ? offSel : r.k;
+        showNotice('Raita ' + r.k + ' kohdistettu automaattisesti' + (q ? ': ' + (q>0?'+':'') + q + ' ms' : ' (ei korjausta)') + '.', q ? () => { O[r.k] -= q; renorm(); refreshUI(); } : null);
+      }
     }
-    $('status').textContent = msg;
     refreshUI();
   }
 
@@ -812,7 +821,9 @@
   }
   // Small-window alignment of a fresh take against the tracks that played behind it.
   // Returns a correction in ms (added to the take's offset), or null if unsure.
+  let lastAlignInfo = null;
   function fineAlignTake(k, others){
+    lastAlignInfo = null;
     const use = others.filter(j => T[j].buf && audible(j));
     if (!use.length || !T[k].buf) return null;
     const sr = 16000, W = 200, st = startsFor(others);
@@ -838,7 +849,8 @@
     }
     let mean = 0; for (const v of sc) mean += v; mean /= sc.length;
     let sd = 0; for (const v of sc) sd += (v-mean)*(v-mean); sd = Math.sqrt(sd/sc.length) || 1e-9;
-    if (nearBest <= 0 || (nearBest - mean)/sd < 2.5 || nearBest < 0.85*best || Math.abs(nq) >= NEAR) return null;
+    lastAlignInfo = { z: (nearBest - mean)/sd, ratio: best > 0 ? nearBest/best : 0, nq };
+    if (nearBest <= 0 || nearBest < 0.8*best || Math.abs(nq) >= NEAR) return null;
     // fine (1 ms frames) around the coarse peak
     const fR = onsetEnv(ref, sr, 16, maxSec), fT = onsetEnv(tk, sr, 16, maxSec);
     let fb = -Infinity, fq = nq*10;
@@ -1100,6 +1112,17 @@
   $('addTrack').addEventListener('click', () => { if (visible < KEYS.length){ visible++; refreshUI(); $('card'+KEYS[visible-1]).scrollIntoView({behavior:'smooth', block:'center'}); } });
 
   $('recStop').addEventListener('click', () => finishRecording());
+  let noticeTimer = null, noticeUndoFn = null;
+  function showNotice(text, undo){
+    $('noticeText').textContent = text;
+    noticeUndoFn = undo || null;
+    $('noticeUndo').style.display = undo ? '' : 'none';
+    $('notice').style.display = 'flex';
+    clearTimeout(noticeTimer); noticeTimer = setTimeout(hideNotice, 12000);
+  }
+  function hideNotice(){ $('notice').style.display = 'none'; noticeUndoFn = null; }
+  $('noticeClose').addEventListener('click', hideNotice);
+  $('noticeUndo').addEventListener('click', () => { if (noticeUndoFn) noticeUndoFn(); $('noticeText').textContent = 'Korjaus peruttu.'; $('noticeUndo').style.display = 'none'; noticeUndoFn = null; });
   $('micClose').addEventListener('click', () => releaseMic());
   $('play').addEventListener('click', () => { if (mode === 'play') stopPlay(); else { prepCtx(); play(); } });
   $('rew').addEventListener('click', () => seek(0));
@@ -1176,8 +1199,9 @@
   }
 
   $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('sig').value = String(S.beats);
+  $('ver').textContent = 'Versio ' + VERSION;
   buildBeats(); refreshUI();
-  window.__h = { fineAlignTake, setTrack, get ctx(){ return ctx; }, markDirty(){ ctxDirty = true; }, T, S, O, get mode(){ return mode; }, get visible(){ return visible; }, starts, total, renderMix, detectSilence };
+  window.__h = { get lastAlignInfo(){ return lastAlignInfo; }, fineAlignTake, setTrack, get ctx(){ return ctx; }, markDirty(){ ctxDirty = true; }, T, S, O, get mode(){ return mode; }, get visible(){ return visible; }, starts, total, renderMix, detectSilence };
 })();
 </script>
 </body>
