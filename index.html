@@ -190,7 +190,9 @@
   <details class="card">
     <summary>Nauhoitusasetukset</summary>
     <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0 4px;color:var(--ink)"><input type="checkbox" id="speakerMode" style="margin-top:3px"> <span><b>Kaiutintila</b> (kokeellinen)</span></label>
-    <p style="margin-top:0">Käyttää iPhonen kaiunpoistoa. Tällöin taustaraidan pitäisi kuulua kaiuttimesta eikä kuuloaukosta, ja tausta vuotaa ottoon vähemmän – mutta laulu kuulostaa hieman käsitellyltä. Kuulokkeilla pidä pois päältä. Kaiutintilassa tehdyt otot merkitään nimeen.</p>
+    <p style="margin-top:0">Käyttää iPhonen kaiunpoistoa. Tällöin taustaraidan pitäisi kuulua kaiuttimesta eikä kuuloaukosta, ja tausta vuotaa ottoon vähemmän – mutta laulu kuulostaa hieman käsitellyltä. Oletuksena päällä; kuulokkeilla voit ottaa sen pois parhaan äänenlaadun saamiseksi. Kaiutintilassa tehdyt otot merkitään nimeen.</p>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0 4px;color:var(--ink)"><input type="checkbox" id="autoAlignRec" style="margin-top:3px"> <span><b>Kohdista uusi otto automaattisesti</b></span></label>
+    <p style="margin-top:0">Nauhoituksen jälkeen otto hienosäädetään taustaraitoja vasten enintään ±200 ms. Jos selvää kohtaa ei löydy, otto jää viivekorjauksen mukaiseen kohtaan.</p>
     <div class="row"><span class="lbl" style="width:auto">Taustan voimakkuus nauhoittaessa</span><input type="range" id="recBg" min="0" max="1" step="0.05"><span class="val" id="recBgV">100 %</span></div>
     <p>Taustaraidat ja klikki soivat nauhoituksen aikana tällä voimakkuudella. Puhelimen kaiuttimella nauhoittaessa pienempi arvo vähentää taustan vuotamista uuteen ottoon. Kuulokkeilla voit pitää 100 %.</p>
     <p>Nauhoitettu raita siirretään automaattisesti laitteen ilmoittaman viiveen verran aikaisemmaksi. Jos uusi otto kuulostaa silti jäävän jälkeen (tai kiirehtivän), säädä lisäkorjausta. Positiivinen arvo siirtää uusia ottoja aikaisemmaksi.</p>
@@ -201,7 +203,7 @@
 
   <details class="card">
     <summary>Vinkit</summary>
-    <p><b>Kuulokkeilla nauhoitus on puhtainta.</b> Puhelimen kaiuttimella taustaraidat ja klikki vuotavat mikrofoniin – pienennä silloin taustan voimakkuutta nauhoitusasetuksista tai nauhoituspalkista.</p>
+    <p><b>Puhelimen kaiuttimella</b> pidä kaiutintila päällä (oletus). <b>Kuulokkeilla</b> sen voi ottaa pois nauhoitusasetuksista, jolloin laulu tallentuu käsittelemättömänä.</p>
     <p>Nauhoittaessa kaikki muut raidat soivat (mykistykset ja soolot huomioiden). Mikrofoni jää auki ottojen välillä, jotta toisto pysyy vakaana; sulje se napista tai siirtymällä pois sivulta.</p>
     <p>Sanelin-appin äänityksen saat ladattua: ⋯ → <b>Tallenna Tiedostoihin</b> → ”Lataa”.</p>
     <p>Jos ääntä ei kuulu, tarkista puhelimen äänetön-kytkin.</p>
@@ -227,7 +229,7 @@
   let rec = null, captureReady = null;
   let trim = null, trimSrc = null;
 
-  const S = { speakerMode:false, recBg:1, fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
+  const S = { autoAlignRec:true, speakerMode:true, recBg:1, fmt:'mp3', bpm:100, beats:4, clickOn:true, countIn:true, clickPlay:false, latExtra:0 };
   try { Object.assign(S, JSON.parse(localStorage.getItem('harmonia-settings') || '{}')); } catch(e) {}
   const saveS = () => { try { localStorage.setItem('harmonia-settings', JSON.stringify(S)); } catch(e) {} };
 
@@ -669,7 +671,13 @@
     O[r.k] = isFinite(m) ? m : 0;
     renorm();
     pos = 0;
-    $('status').textContent = r.others.length ? 'Uusi otto kohdistettu muiden raitojen kanssa. Hienosäädä tarvittaessa.' : '';
+    let msg = r.others.length ? 'Uusi otto kohdistettu muiden raitojen kanssa. Hienosäädä tarvittaessa.' : '';
+    if (r.others.length && S.autoAlignRec){
+      const q = fineAlignTake(r.k, r.others);
+      if (q === null) msg = 'Uusi otto kohdistettu viiveen mukaan (tarkkaa kohtaa ei löytynyt automaattisesti). Hienosäädä tarvittaessa.';
+      else { O[r.k] += q; renorm(); msg = 'Uusi otto kohdistettu automaattisesti' + (q ? ' (korjaus ' + (q>0?'+':'') + q + ' ms)' : '') + '. Hienosäädä tarvittaessa.'; }
+    }
+    $('status').textContent = msg;
     refreshUI();
   }
 
@@ -801,6 +809,34 @@
     let v=0; for (let f=0;f<frames;f++){ o[f]-=m; v+=o[f]*o[f]; }
     v = Math.sqrt(v)||1; for (let f=0;f<frames;f++) o[f]/=v;
     return o;
+  }
+  // Small-window alignment of a fresh take against the tracks that played behind it.
+  // Returns a correction in ms (added to the take's offset), or null if unsure.
+  function fineAlignTake(k, others){
+    const use = others.filter(j => T[j].buf && audible(j));
+    if (!use.length || !T[k].buf) return null;
+    const sr = 16000, W = 200, st = startsFor(others);
+    const tk = resampleTo(T[k].mono, T[k].buf.sampleRate, sr);
+    const maxSec = Math.min(60, tk.length/sr);
+    const len = Math.floor(maxSec*sr);
+    if (len < sr) return null;
+    const ref = new Float32Array(len);
+    for (const j of use){
+      const m = resampleTo(T[j].mono, T[j].buf.sampleRate, sr), off = Math.round(st[j]*sr);
+      const g = parseFloat($('vol'+j).value) || 1;
+      for (let i = Math.max(0, -off); i < m.length && off + i < len; i++) ref[off+i] += m[i]*g;
+    }
+    const eR = onsetEnv(ref, sr, 16, maxSec), eT = onsetEnv(tk, sr, 16, maxSec);
+    const sc = new Float32Array(2*W+1); let best = -Infinity, bq = 0;
+    for (let q=-W; q<=W; q++){
+      let s = 0; const i0 = Math.max(0,q), i1 = Math.min(eR.length, eT.length+q);
+      for (let i=i0;i<i1;i++) s += eR[i]*eT[i-q];
+      sc[q+W] = s; if (s > best){ best = s; bq = q; }
+    }
+    let mean = 0; for (const v of sc) mean += v; mean /= sc.length;
+    let sd = 0; for (const v of sc) sd += (v-mean)*(v-mean); sd = Math.sqrt(sd/sc.length) || 1e-9;
+    if (best <= 0 || (best - mean)/sd < 4 || Math.abs(bq) >= W - 2) return null;
+    return bq;
   }
   function resampleTo(mono, srFrom, srTo){
     if (srFrom === srTo) return mono;
@@ -1087,7 +1123,9 @@
   }
   function setRecBg(v){
     S.recBg = v; saveS();
-    $('speakerMode').checked = !!S.speakerMode;
+    $('autoAlignRec').checked = !!S.autoAlignRec;
+  $('autoAlignRec').addEventListener('change', e => { S.autoAlignRec = e.target.checked; saveS(); });
+  $('speakerMode').checked = !!S.speakerMode;
   $('speakerMode').addEventListener('change', e => {
     S.speakerMode = e.target.checked; saveS();
     if (mode !== 'rec') releaseMic();   // next take reopens the mic with the new setting
@@ -1132,7 +1170,7 @@
 
   $('bpm').value = S.bpm; $('bpmVal').textContent = S.bpm; $('sig').value = String(S.beats);
   buildBeats(); refreshUI();
-  window.__h = { get ctx(){ return ctx; }, markDirty(){ ctxDirty = true; }, T, S, O, get mode(){ return mode; }, get visible(){ return visible; }, starts, total, renderMix, detectSilence };
+  window.__h = { fineAlignTake, setTrack, get ctx(){ return ctx; }, markDirty(){ ctxDirty = true; }, T, S, O, get mode(){ return mode; }, get visible(){ return visible; }, starts, total, renderMix, detectSilence };
 })();
 </script>
 </body>
